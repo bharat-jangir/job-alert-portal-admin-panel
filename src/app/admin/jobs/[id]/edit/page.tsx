@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { JobForm } from '../../components/JobForm';
 import { toast } from 'sonner';
 import api from '@/lib/axios';
 
-export default function EditJobPage({ params }: { params: { id: string } }) {
+export default function EditJobPage() {
   const router = useRouter();
+  const params = useParams();
   const [job, setJob] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const jobId = params.id;
+  const jobId = params.id as string;
 
   useEffect(() => {
     if (jobId) {
