@@ -58,7 +58,7 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
     },
     askBeforePasteFromWord: false,
     defaultActionOnPaste: 'insert_as_html'
-  }), [placeholder]);
+  } as any), [placeholder]);
 
   return (
     <div className={`bg-white ${className || ''}`}>
