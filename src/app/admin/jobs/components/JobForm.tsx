@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { X } from 'lucide-react';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import Editor from '@monaco-editor/react';
 
 // Define enums to match backend
@@ -135,6 +136,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     categoryId: typeof job?.categoryId === 'object' ? job?.categoryId?._id : (job?.categoryId || ''),
   });
 
+  const [tagInput, setTagInput] = useState(job?.tags?.join(', ') || '');
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
 
   useEffect(() => {
@@ -283,7 +285,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium mb-2">Job Title</label>
+          <label className="block text-sm font-medium mb-2">Job Title <span className="text-red-500">*</span></label>
           <Input
             value={formData.title}
             onChange={(e) => handleChange('title', e.target.value)}
@@ -293,7 +295,10 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">URL Slug</label>
+          <label className="block text-sm font-medium mb-1">URL Slug <span className="text-red-500">*</span></label>
+          <p className="text-xs text-gray-500 mb-2">
+            The exact text that will appear in the web address (e.g., website.com/jobs/<strong>your-slug-here</strong>). Use only lowercase letters, numbers, and hyphens.
+          </p>
           <Input
             value={formData.slug}
             onChange={(e) => handleChange('slug', e.target.value)}
@@ -402,7 +407,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-2">HTML Content</label>
+        <label className="block text-sm font-medium mb-2">Detailed Content (HTML)</label>
         <div className="space-y-2">
           <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
             <DialogTrigger asChild>
@@ -463,22 +468,20 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
 
       <div>
         <label className="block text-sm font-medium mb-2">Job Description</label>
-        <Textarea
+        <RichTextEditor
           value={formData.description}
-          onChange={(e) => handleChange('description', e.target.value)}
+          onChange={(val) => handleChange('description', val)}
           placeholder="Enter detailed job description"
-          className="min-h-[150px]"
         />
         {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
       </div>
 
       <div>
         <label className="block text-sm font-medium mb-2">Eligibility Criteria</label>
-        <Textarea
+        <RichTextEditor
           value={formData.eligibility}
-          onChange={(e) => handleChange('eligibility', e.target.value)}
+          onChange={(val) => handleChange('eligibility', val)}
           placeholder="Enter eligibility criteria"
-          className="min-h-[100px]"
         />
         {errors.eligibility && <p className="text-red-500 text-sm mt-1">{errors.eligibility}</p>}
       </div>
@@ -557,7 +560,10 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
       <div className="space-y-4">
         <h3 className="text-lg font-medium">SEO Information</h3>
         <div>
-          <label className="block text-sm font-medium mb-2">Meta Title</label>
+          <label className="block text-sm font-medium mb-1">Meta Title</label>
+          <p className="text-xs text-gray-500 mb-2">
+            The title that appears in Google search results and browser tabs. Keep it under 60 characters for best SEO.
+          </p>
           <Input
             value={formData.metaTitle}
             onChange={(e) => handleChange('metaTitle', e.target.value)}
@@ -566,7 +572,10 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Meta Description</label>
+          <label className="block text-sm font-medium mb-1">Meta Description</label>
+          <p className="text-xs text-gray-500 mb-2">
+            A short summary of the job that appears below the title in search results. Keep it between 150-160 characters.
+          </p>
           <Textarea
             value={formData.metaDescription}
             onChange={(e) => handleChange('metaDescription', e.target.value)}
@@ -577,11 +586,17 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-2">Tags</label>
+        <label className="block text-sm font-medium mb-1">Tags</label>
+        <p className="text-xs text-gray-500 mb-2">
+          Keywords related to the job. Type a word and type a comma (,) to separate multiple tags. Example: <span className="font-mono bg-gray-100 px-1 py-0.5 rounded">government, bihar, inspector</span>
+        </p>
         <Input
-          value={formData.tags.join(', ')}
-          onChange={(e) => handleChange('tags', e.target.value.split(',').map(tag => tag.trim()).filter(Boolean))}
-          placeholder="Enter tags separated by commas"
+          value={tagInput}
+          onChange={(e) => {
+            setTagInput(e.target.value);
+            handleChange('tags', e.target.value.split(',').map(tag => tag.trim()).filter(Boolean));
+          }}
+          placeholder="e.g., government, bihar, inspector"
         />
       </div>
 
@@ -612,7 +627,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
       </div>
 
       <div className="mb-4">
-        <label className="block mb-1 font-medium">Job Type</label>
+        <label className="block mb-1 font-medium">Job Type <span className="text-red-500">*</span></label>
         <select
           className="border rounded px-2 py-1 w-full"
           value={formData.categoryId || ''}
