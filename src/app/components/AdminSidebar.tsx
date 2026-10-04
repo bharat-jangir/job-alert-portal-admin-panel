@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -17,7 +18,20 @@ import {
   Megaphone,
   LogOut,
   Shield,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  PlusCircle,
+  List,
+  FileCheck,
 } from 'lucide-react';
+
+interface SubItem {
+  title: string;
+  href: string;
+  icon?: any;
+  minRole?: AdminRole;
+}
 
 interface SidebarItem {
   title: string;
@@ -25,17 +39,28 @@ interface SidebarItem {
   icon: any;
   /** Minimum role required to see this item. Defaults to VIEWER. */
   minRole?: AdminRole;
+  subItems?: SubItem[];
 }
 
 const sidebarItems: SidebarItem[] = [
   { title: 'Dashboard',       href: '/admin',                icon: LayoutDashboard },
   { title: 'Jobs',             href: '/admin/jobs',           icon: Briefcase },
   { title: 'Bulletins',        href: '/admin/bulletins',      icon: Megaphone },
-  { title: 'Job Categories',   href: '/admin/job-categories', icon: Briefcase, minRole: AdminRole.PUBLISHER },
-  { title: 'Organizations',    href: '/admin/organizations',  icon: Building2, minRole: AdminRole.PUBLISHER },
+  {
+    title: 'Scrapers',
+    href: '/admin/scrapers',
+    icon: Bot,
+    subItems: [
+      { title: 'Target Sources',    href: '/admin/scrapers',        icon: List },
+      { title: 'Add Target Source', href: '/admin/scrapers/create', icon: PlusCircle },
+      { title: 'Imported Drafts',   href: '/admin/jobs',            icon: FileCheck },
+    ],
+  },
+  { title: 'Job Categories',   href: '/admin/job-categories', icon: Briefcase },
+  { title: 'Organizations',    href: '/admin/organizations',  icon: Building2 },
   { title: 'Redirect Links',   href: '/admin/redirect-links', icon: Link2 },
   { title: 'FAQ',              href: '/admin/faqs',           icon: HelpCircle },
-  { title: 'Queries',          href: '/admin/queries',        icon: Mail, minRole: AdminRole.EDITOR },
+  { title: 'Queries',          href: '/admin/queries',        icon: Mail },
   { title: 'Users',            href: '/admin/users',          icon: Users, minRole: AdminRole.SUPER_ADMIN },
   { title: 'Settings',         href: '/admin/settings',       icon: Settings, minRole: AdminRole.SUPER_ADMIN },
 ];
@@ -57,6 +82,28 @@ const ROLE_COLORS: Record<AdminRole, string> = {
 export function AdminSidebar() {
   const pathname = usePathname();
   const { user, logout, hasPermission } = useAuth();
+  const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
+
+  // Auto-expand menu if current path matches item or its subItems
+  useEffect(() => {
+    const newOpenState: Record<string, boolean> = { ...openSubMenus };
+    sidebarItems.forEach((item) => {
+      if (item.subItems) {
+        const isChildActive = item.subItems.some((sub) => pathname === sub.href && sub.href !== '/admin/jobs');
+        const isParentActive = pathname === item.href || pathname.startsWith(item.href + '/');
+        if (isChildActive || isParentActive) {
+          newOpenState[item.href] = true;
+        }
+      }
+    });
+    setOpenSubMenus(newOpenState);
+  }, [pathname]);
+
+  const toggleSubMenu = (href: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpenSubMenus((prev) => ({ ...prev, [href]: !prev[href] }));
+  };
 
   // Filter sidebar items by user's role
   const visibleItems = sidebarItems.filter((item) => {
@@ -75,24 +122,72 @@ export function AdminSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {visibleItems.map((item) => {
           const isDashboard = item.href === '/admin';
-          const isActive = pathname === item.href || (!isDashboard && pathname.startsWith(item.href + '/'));
+          const isParentActive = pathname === item.href || (!isDashboard && pathname.startsWith(item.href + '/'));
+          const hasSub = Boolean(item.subItems && item.subItems.length > 0);
+          const isOpen = openSubMenus[item.href];
+
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors',
-                isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            <div key={item.href} className="space-y-1">
+              <div className="flex items-center justify-between group">
+                <Link
+                  href={item.href}
+                  onClick={() => {
+                    if (hasSub && !isOpen) {
+                      setOpenSubMenus((prev) => ({ ...prev, [item.href]: true }));
+                    }
+                  }}
+                  className={cn(
+                    'flex-1 flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium',
+                    isParentActive
+                      ? 'bg-blue-600 text-white font-semibold shadow-sm'
+                      : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                  )}
+                >
+                  <item.icon className="w-5 h-5 shrink-0 text-blue-400 group-hover:text-white transition-colors" />
+                  <span>{item.title}</span>
+                </Link>
+                {hasSub && (
+                  <button
+                    type="button"
+                    onClick={(e) => toggleSubMenu(item.href, e)}
+                    className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
+                    aria-label={`Toggle ${item.title} sub-menu`}
+                  >
+                    {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Sub-Items */}
+              {hasSub && isOpen && (
+                <div className="pl-9 space-y-1 border-l-2 border-blue-500/40 ml-5 my-1">
+                  {item.subItems
+                    ?.filter((sub) => !sub.minRole || hasPermission([sub.minRole]))
+                    .map((sub) => {
+                      const isSubActive = pathname === sub.href;
+                      const SubIcon = sub.icon;
+                      return (
+                        <Link
+                          key={sub.href}
+                          href={sub.href}
+                          className={cn(
+                            'flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                            isSubActive
+                              ? 'bg-blue-900/60 text-blue-300 font-semibold'
+                              : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                          )}
+                        >
+                          {SubIcon && <SubIcon className="w-3.5 h-3.5" />}
+                          <span>{sub.title}</span>
+                        </Link>
+                      );
+                    })}
+                </div>
               )}
-            >
-              <item.icon className="w-5 h-5" />
-              <span>{item.title}</span>
-            </Link>
+            </div>
           );
         })}
       </nav>

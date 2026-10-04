@@ -68,10 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await api.post('/auth/login', { email, password });
-    const { access_token } = response.data?.data || response.data;
+    const payload = response.data?.data || response.data;
+    const { access_token, refresh_token } = payload;
 
-    // Store token immediately so the next request uses it
+    // Store tokens immediately so the next request uses them
     localStorage.setItem('admin_token', access_token);
+    if (refresh_token) {
+      localStorage.setItem('admin_refresh_token', refresh_token);
+    }
     setToken(access_token);
 
     // Fetch user profile with the new token
@@ -92,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_refresh_token');
     localStorage.removeItem('admin_user');
     setToken(null);
     setUser(null);
