@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -16,7 +17,7 @@ interface Faq {
   isActive: boolean;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function AdminFaqsPage() {
   const [faqs, setFaqs] = useState<Faq[]>([]);
@@ -26,7 +27,7 @@ export default function AdminFaqsPage() {
 
   const fetchFaqs = async () => {
     try {
-      const res = await fetch(`${API}/api/faqs`);
+      const res = await apiFetch(`${API}/api/faqs`);
       const result = await res.json();
       const payload = result.data ?? result;
       setFaqs(Array.isArray(payload) ? payload : []);
@@ -42,7 +43,7 @@ export default function AdminFaqsPage() {
   const move = async (id: string, dir: 'move-up' | 'move-down') => {
     setActionId(id + dir);
     try {
-      const res = await fetch(`${API}/api/faqs/${id}/${dir}`, { method: 'PATCH' });
+      const res = await apiFetch(`${API}/api/faqs/${id}/${dir}`, { method: 'PATCH' });
       const result = await res.json();
       const payload = result.data ?? result;
       setFaqs(Array.isArray(payload) ? payload : []);
@@ -56,7 +57,7 @@ export default function AdminFaqsPage() {
   const toggleActive = async (faq: Faq) => {
     setActionId(faq._id + 'toggle');
     try {
-      const res = await fetch(`${API}/api/faqs/${faq._id}`, {
+      const res = await apiFetch(`${API}/api/faqs/${faq._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !faq.isActive }),
@@ -75,7 +76,7 @@ export default function AdminFaqsPage() {
     if (!confirm('Delete this FAQ? This cannot be undone.')) return;
     setActionId(id + 'del');
     try {
-      await fetch(`${API}/api/faqs/${id}`, { method: 'DELETE' });
+      await apiFetch(`${API}/api/faqs/${id}`, { method: 'DELETE' });
       setFaqs((prev) => prev.filter((f) => f._id !== id));
     } catch {
       setError('Failed to delete');

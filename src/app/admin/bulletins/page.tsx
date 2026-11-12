@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Megaphone, ExternalLink, XCircle } from 'lucide-react';
@@ -12,7 +13,7 @@ interface Job {
   type: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function AdminBulletinsPage() {
   const [bulletins, setBulletins] = useState<Job[]>([]);
@@ -22,7 +23,7 @@ export default function AdminBulletinsPage() {
 
   const fetchBulletins = async () => {
     try {
-      const res = await fetch(`${API}/api/jobs/bulletins`);
+      const res = await apiFetch(`${API}/api/jobs/bulletins`);
       const result = await res.json();
       const payload = result.data ?? result;
       setBulletins(Array.isArray(payload) ? payload : []);
@@ -38,7 +39,7 @@ export default function AdminBulletinsPage() {
   const removeFromBulletin = async (id: string) => {
     setActionId(id);
     try {
-      const res = await fetch(`${API}/api/jobs/bulletins/${id}/toggle`, {
+      const res = await apiFetch(`${API}/api/jobs/bulletins/${id}/toggle`, {
         method: 'PATCH',
       });
       if (!res.ok) throw new Error('Failed to toggle');

@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import { Mail, CheckCircle, Clock, Inbox, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -14,7 +15,7 @@ interface ContactQuery {
   createdAt: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function AdminQueriesPage() {
   const [queries, setQueries] = useState<ContactQuery[]>([]);
@@ -28,7 +29,7 @@ export default function AdminQueriesPage() {
 
   const fetchQueries = async () => {
     try {
-      const res = await fetch(`${API}/api/contact`);
+      const res = await apiFetch(`${API}/api/contact`);
       const result = await res.json();
       const payload = result.data ?? result;
       setQueries(Array.isArray(payload) ? payload : []);
@@ -42,7 +43,7 @@ export default function AdminQueriesPage() {
   const updateStatus = async (id: string, status: string) => {
     setActionId(id);
     try {
-      const res = await fetch(`${API}/api/contact/${id}`, {
+      const res = await apiFetch(`${API}/api/contact/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -61,7 +62,7 @@ export default function AdminQueriesPage() {
     if (!confirm('Are you sure you want to delete this query?')) return;
     setActionId(id + 'del');
     try {
-      await fetch(`${API}/api/contact/${id}`, { method: 'DELETE' });
+      await apiFetch(`${API}/api/contact/${id}`, { method: 'DELETE' });
       setQueries((prev) => prev.filter((q) => q._id !== id));
     } catch {
       setError('Failed to delete query');

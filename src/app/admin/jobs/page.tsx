@@ -15,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import api from '@/lib/axios';
 import { useDebounce } from '@/hooks/useDebounce';
-import { Search, Loader2, Megaphone } from 'lucide-react';
+import { Search, Loader2, Megaphone, Copy } from 'lucide-react';
 
 interface Job {
   _id: string;
@@ -24,6 +24,8 @@ interface Job {
   location: string;
   lastDate: string;
   isActive: boolean;
+  status?: string;
+  type?: string;
   isBulletin: boolean;
   createdAt: string;
 }
@@ -39,6 +41,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalJobs, setTotalJobs] = useState(0);
@@ -50,17 +53,18 @@ export default function JobsPage() {
 
   useEffect(() => {
     fetchJobs();
-  }, [currentPage, debouncedSearchTerm]);
+  }, [currentPage, debouncedSearchTerm, statusFilter]);
 
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
       setIsSearching(true);
-      const { data } = await api.get<JobsResponse>('/jobs', {
+      const { data } = await api.get<JobsResponse>('/jobs/admin/list', {
         params: {
           page: currentPage,
           limit: itemsPerPage,
-          search: debouncedSearchTerm || undefined
+          search: debouncedSearchTerm || undefined,
+          status: statusFilter || undefined
         }
       });
       setJobs(data.data.jobs);
@@ -84,6 +88,16 @@ export default function JobsPage() {
       fetchJobs();
     } catch (error) {
       toast.error('Failed to delete job');
+    }
+  };
+
+  const handleDuplicate = async (id: string) => {
+    try {
+      await api.post(`/jobs/id/${id}/duplicate`);
+      toast.success('Duplicated as a draft');
+      fetchJobs();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error?.message || 'Failed to duplicate');
     }
   };
 
@@ -209,6 +223,19 @@ export default function JobsPage() {
         )}
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[['', 'All'], ['draft', 'Drafts'], ['review', 'In review'], ['scheduled', 'Scheduled'], ['published', 'Published'], ['archived', 'Archived']].map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => { setStatusFilter(v); setCurrentPage(1); }}
+            className={`px-3 py-1 rounded-full text-sm border ${statusFilter === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white rounded-lg shadow">
         <Table>
           <TableHeader>
@@ -249,12 +276,12 @@ export default function JobsPage() {
                   <TableCell className="font-medium">{job.title}</TableCell>
                   <TableCell>{job.organization}</TableCell>
                   <TableCell>{job.location}</TableCell>
-                  <TableCell>{new Date(job.lastDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{job.lastDate ? new Date(job.lastDate).toLocaleDateString() : '—'}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded text-sm ${
-                      job.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    <span className={`px-2 py-1 rounded text-sm capitalize ${
+                      ({ published: 'bg-green-100 text-green-800', draft: 'bg-gray-100 text-gray-700', review: 'bg-yellow-100 text-yellow-800', scheduled: 'bg-blue-100 text-blue-800', archived: 'bg-red-100 text-red-800' } as Record<string, string>)[job.status || 'published'] || 'bg-gray-100'
                     }`}>
-                      {job.isActive ? 'Active' : 'Inactive'}
+                      {job.status || 'published'}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -267,6 +294,9 @@ export default function JobsPage() {
                         title={job.isBulletin ? "Remove from Bulletin" : "Add to Bulletin"}
                       >
                         <Megaphone className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDuplicate(job._id)} title="Duplicate as draft">
+                        <Copy className="h-4 w-4" />
                       </Button>
                       <Link href={`/admin/jobs/${job._id}/edit`}>
                         <Button variant="outline" size="sm">Edit</Button>

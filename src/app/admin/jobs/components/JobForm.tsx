@@ -17,6 +17,8 @@ import {
 import { X } from 'lucide-react';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import Editor from '@monaco-editor/react';
+import { SectionsEditor, cleanSections, type Section } from '@/components/SectionsEditor';
+import { useAuth, AdminRole } from '@/lib/auth-context';
 
 // Define enums to match backend
 enum ExperienceLevel {
@@ -66,6 +68,13 @@ interface JobFormData {
   sourceUrl?: string;
   type: string;
   categoryId?: string;
+  status: string;
+  scheduledAt: string;
+  states: string;
+  canonicalUrl: string;
+  ogImage: string;
+  updateNote: string;
+  sections: Section[];
 }
 
 interface JobFormProps {
@@ -87,6 +96,9 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
   const [htmlCode, setHtmlCode] = useState('');
   const [organizations, setOrganizations] = useState<{_id: string, name: string}[]>([]);
   const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canPublish = hasPermission([AdminRole.PUBLISHER]);
+  const [revisions, setRevisions] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
@@ -105,6 +117,27 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     };
     fetchData();
   }, []);
+
+  const loadRevisions = async () => {
+    if (!job?._id) return;
+    try {
+      const res = await api.get(`/jobs/id/${job._id}/revisions`);
+      setRevisions(res.data?.data ?? []);
+    } catch {}
+  };
+  useEffect(() => { loadRevisions(); }, [job?._id]);
+
+  const restoreRevision = async (revisionId: string, version: number) => {
+    if (!confirm(`Restore version ${version}? The current content is saved as a new revision first.`)) return;
+    try {
+      await api.post(`/jobs/id/${job._id}/revisions/${revisionId}/restore`);
+      toast.success(`Restored version ${version}`);
+      router.refresh();
+      window.location.reload();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error?.message || 'Restore failed');
+    }
+  };
 
   const [formData, setFormData] = useState<JobFormData>({
     title: job?.title || '',
@@ -134,6 +167,13 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     sourceUrl: job?.sourceUrl || '',
     type: job?.type || '',
     categoryId: typeof job?.categoryId === 'object' ? job?.categoryId?._id : (job?.categoryId || ''),
+    status: job?.status || 'draft',
+    scheduledAt: formatDateForInput(job?.scheduledAt),
+    states: (job?.states || []).join(', '),
+    canonicalUrl: job?.canonicalUrl || '',
+    ogImage: job?.ogImage || '',
+    updateNote: job?.updateNote || '',
+    sections: job?.sections || [],
   });
 
   const [tagInput, setTagInput] = useState(job?.tags?.join(', ') || '');
@@ -155,27 +195,19 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof JobFormData, string>> = {};
 
-    // No required or length validations
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (!formData.type) newErrors.type = 'Choose a job type';
+    if (formData.status === 'scheduled' && (!formData.scheduledAt || new Date(formData.scheduledAt) <= new Date())) {
+      newErrors.scheduledAt = 'Pick a future date to schedule';
+    }
 
     // Format validations
     if (formData.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(formData.slug)) {
       newErrors.slug = 'Slug must be URL-friendly (lowercase letters, numbers, and hyphens)';
     }
 
-    if (formData.salary && !/^[0-9]+(\.[0-9]+)?\s*[A-Z]{3}$/.test(formData.salary)) {
-      newErrors.salary = 'Salary must be a number followed by currency code (e.g., "50000 USD")';
-    }
-
     if (formData.applyLink && !/^https?:\/\/.+/.test(formData.applyLink)) {
       newErrors.applyLink = 'Must be a valid URL';
-    }
-
-    if (formData.totalVacancy && !/^\d+$/.test(formData.totalVacancy)) {
-      newErrors.totalVacancy = 'Total vacancy must be a number';
-    }
-
-    if (formData.ageLimit && !/^\d+-\d+$/.test(formData.ageLimit)) {
-      newErrors.ageLimit = 'Age limit must be in format "min-max" (e.g., "18-35")';
     }
 
     if (formData.sourceUrl && !/^https?:\/\/.+/.test(formData.sourceUrl)) {
@@ -228,18 +260,20 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
 
     setIsLoading(true);
     try {
-      const formattedData = {
-        ...formData,
-        lastDate: formData.lastDate && !isNaN(new Date(formData.lastDate).getTime())
-          ? new Date(formData.lastDate).toISOString()
-          : '',
-        importantDates: formData.importantDates.map(date => ({
-          ...date,
-          date: date.date && !isNaN(new Date(date.date).getTime())
-            ? new Date(date.date).toISOString()
-            : ''
-        }))
+      const iso = (v: string) => (v && !isNaN(new Date(v).getTime()) ? new Date(v).toISOString() : undefined);
+      const { states, sections, scheduledAt, lastDate, importantDates, ...rest } = formData;
+      const formattedData: Record<string, any> = {
+        ...rest,
+        lastDate: iso(lastDate),
+        scheduledAt: formData.status === 'scheduled' ? iso(scheduledAt) : undefined,
+        states: states.split(',').map((x) => x.trim()).filter(Boolean),
+        sections: cleanSections(sections),
+        importantDates: importantDates
+          .filter((d) => d.label || d.date)
+          .map((d) => ({ label: d.label, date: iso(d.date) })),
       };
+      // empty strings -> omitted (the API treats them as "not set")
+      for (const k of Object.keys(formattedData)) if (formattedData[k] === '') delete formattedData[k];
 
       if (job) {
         await api.patch(`/jobs/id/${job._id}`, formattedData);
@@ -254,10 +288,9 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     } catch (error: any) {
       console.error('Error saving job:', error);
       
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      } else if (error.response?.data?.error) {
-        toast.error(error.response.data.error);
+      const apiMsg = error.response?.data?.error?.message ?? error.response?.data?.message;
+      if (apiMsg) {
+        toast.error(Array.isArray(apiMsg) ? apiMsg.join(', ') : String(apiMsg));
       } else {
         toast.error('Failed to save job. Please try again.');
       }
@@ -283,6 +316,37 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="rounded-lg border bg-gray-50 p-4 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select
+              className="w-full p-2 border rounded-md bg-white"
+              value={formData.status}
+              onChange={(e) => handleChange('status', e.target.value)}
+            >
+              <option value="draft">Draft</option>
+              <option value="review">In review</option>
+              {(canPublish || formData.status === 'published') && <option value="published" disabled={!canPublish}>Published</option>}
+              {(canPublish || formData.status === 'scheduled') && <option value="scheduled" disabled={!canPublish}>Scheduled</option>}
+              {(canPublish || formData.status === 'archived') && <option value="archived" disabled={!canPublish}>Archived (hidden)</option>}
+            </select>
+            {!canPublish && <p className="text-xs text-gray-500 mt-1">Only publishers can make a post live. Save as draft or submit it for review.</p>}
+          </div>
+          {formData.status === 'scheduled' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Publish at</label>
+              <Input type="datetime-local" value={formData.scheduledAt} onChange={(e) => handleChange('scheduledAt', e.target.value)} />
+              {errors.scheduledAt && <p className="text-red-500 text-sm mt-1">{errors.scheduledAt}</p>}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Update note <span className="text-gray-400 font-normal">(shown to readers when you change a live post)</span></label>
+          <Input value={formData.updateNote} placeholder="e.g. Last date extended to 30 June" onChange={(e) => handleChange('updateNote', e.target.value)} />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium mb-2">Job Title <span className="text-red-500">*</span></label>
@@ -405,6 +469,12 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         />
         {errors.applyLink && <p className="text-red-500 text-sm mt-1">{errors.applyLink}</p>}
       </div>
+      <div className="rounded-lg border p-4">
+        <h3 className="text-lg font-medium mb-1">Structured content</h3>
+        <p className="text-sm text-gray-500 mb-3">Build the page from typed blocks (tables, steps, links, FAQ). Shown before the free-form content below.</p>
+        <SectionsEditor value={formData.sections} onChange={(v) => handleChange('sections', v)} postType={formData.type} />
+      </div>
+
 
       <div>
         <label className="block text-sm font-medium mb-2">Detailed Content (HTML)</label>
@@ -584,6 +654,33 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
           />
         </div>
       </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">States</label>
+        <p className="text-xs text-gray-500 mb-2">Comma separated (e.g. Bihar, Uttar Pradesh, All India). Powers the "jobs in state" pages.</p>
+        <Input value={formData.states} onChange={(e) => handleChange('states', e.target.value)} placeholder="Bihar, Jharkhand" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="block text-sm font-medium mb-1">Canonical URL <span className="text-gray-400 font-normal">(optional)</span></label>
+          <Input value={formData.canonicalUrl} onChange={(e) => handleChange('canonicalUrl', e.target.value)} placeholder="https://…" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Social share image <span className="text-gray-400 font-normal">(optional)</span></label>
+          <Input value={formData.ogImage} onChange={(e) => handleChange('ogImage', e.target.value)} placeholder="https://…/image.jpg" />
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-4 bg-white">
+        <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Google preview</p>
+        <p className="text-blue-700 text-lg leading-snug truncate">{(formData.metaTitle || formData.title || 'Page title').slice(0, 70)}</p>
+        <p className="text-green-700 text-sm truncate">yoursite.com › {formData.type || 'type'} › {formData.slug || 'slug'}</p>
+        <p className="text-sm text-gray-600 line-clamp-2">{formData.metaDescription || formData.description || 'Meta description appears here.'}</p>
+        <p className={`text-xs mt-2 ${(formData.metaTitle || formData.title).length > 60 ? 'text-orange-600' : 'text-gray-400'}`}>
+          Title {(formData.metaTitle || formData.title).length}/60 · Description {(formData.metaDescription || '').length}/160
+        </p>
+      </div>
+
 
       <div>
         <label className="block text-sm font-medium mb-1">Tags</label>
@@ -648,6 +745,23 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         </select>
         {errors.type && <div className="text-red-500 text-sm">{errors.type}</div>}
       </div>
+
+      {job && revisions.length > 0 && (
+        <details className="rounded-lg border p-4">
+          <summary className="cursor-pointer font-medium">Revision history ({revisions.length})</summary>
+          <ul className="mt-3 divide-y text-sm">
+            {revisions.map((r) => (
+              <li key={r._id} className="py-2 flex items-center justify-between gap-3">
+                <span>
+                  <strong>v{r.version}</strong> · {new Date(r.createdAt).toLocaleString()}
+                  {r.editorName ? ` · ${r.editorName}` : ''}{r.note ? ` · ${r.note}` : ''}
+                </span>
+                <Button type="button" variant="outline" size="sm" onClick={() => restoreRevision(r._id, r.version)}>Restore</Button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <div className="flex justify-end space-x-4">
         <Button

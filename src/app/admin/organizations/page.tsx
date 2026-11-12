@@ -1,5 +1,6 @@
 'use client';
 
+import { apiFetch } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -15,7 +16,7 @@ interface Organization {
   isActive: boolean;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function AdminOrganizationsPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -25,7 +26,7 @@ export default function AdminOrganizationsPage() {
 
   const fetchOrganizations = async () => {
     try {
-      const res = await fetch(`${API}/api/organizations`);
+      const res = await apiFetch(`${API}/api/organizations`);
       const result = await res.json();
       const payload = result.data ?? result;
       setOrganizations(Array.isArray(payload) ? payload : []);
@@ -41,7 +42,7 @@ export default function AdminOrganizationsPage() {
   const toggleActive = async (org: Organization) => {
     setActionId(org._id + 'toggle');
     try {
-      const res = await fetch(`${API}/api/organizations/${org._id}`, {
+      const res = await apiFetch(`${API}/api/organizations/${org._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !org.isActive }),
@@ -60,7 +61,7 @@ export default function AdminOrganizationsPage() {
     if (!confirm('Delete this Organization? This cannot be undone.')) return;
     setActionId(id + 'del');
     try {
-      await fetch(`${API}/api/organizations/${id}`, { method: 'DELETE' });
+      await apiFetch(`${API}/api/organizations/${id}`, { method: 'DELETE' });
       setOrganizations((prev) => prev.filter((o) => o._id !== id));
     } catch {
       setError('Failed to delete');

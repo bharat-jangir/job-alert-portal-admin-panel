@@ -1,11 +1,12 @@
 'use client';
 
+import { apiFetch, readApiError } from '@/lib/http';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Building2, ArrowLeft, Save } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function CreateOrganizationPage() {
   const router = useRouter();
@@ -27,18 +28,18 @@ export default function CreateOrganizationPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${API}/api/organizations`, {
+      const res = await apiFetch(`${API}/api/organizations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          slug: form.slug || form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+          slug: form.slug.trim() || undefined
         }),
       });
-      if (!res.ok) throw new Error('Failed to create');
+      if (!res.ok) throw new Error(await readApiError(res, 'Failed to create'));
       router.push('/admin/organizations');
-    } catch {
-      setError('Failed to save organization. Please try again.');
+    } catch (err: any) {
+      setError(err?.message && !/^Failed to (create|update)$/.test(err.message) ? err.message : 'Failed to save organization. Please try again.');
     } finally {
       setSaving(false);
     }

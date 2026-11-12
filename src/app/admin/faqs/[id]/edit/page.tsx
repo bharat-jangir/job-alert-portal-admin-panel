@@ -1,11 +1,12 @@
 'use client';
 
+import { apiFetch, readApiError } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { HelpCircle, ArrowLeft, Save } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const CATEGORIES = ['General', 'Applying', 'Admit Cards', 'Results', 'Answer Keys', 'Eligibility', 'Fees', 'Other'];
 
 export default function EditFaqPage() {
@@ -19,7 +20,7 @@ export default function EditFaqPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`${API}/api/faqs/${id}`)
+    apiFetch(`${API}/api/faqs/${id}`)
       .then((r) => r.json())
       .then((res) => {
         const data = res.data ?? res;
@@ -43,15 +44,15 @@ export default function EditFaqPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${API}/api/faqs/${id}`, {
+      const res = await apiFetch(`${API}/api/faqs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('Failed to update');
+      if (!res.ok) throw new Error(await readApiError(res, 'Failed to update'));
       router.push('/admin/faqs');
-    } catch {
-      setError('Failed to update FAQ. Please try again.');
+    } catch (err: any) {
+      setError(err?.message && !/^Failed to (create|update)$/.test(err.message) ? err.message : 'Failed to update FAQ. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -37,7 +37,7 @@ const sidebarItems: SidebarItem[] = [
   { title: 'FAQ',              href: '/admin/faqs',           icon: HelpCircle },
   { title: 'Queries',          href: '/admin/queries',        icon: Mail, minRole: AdminRole.EDITOR },
   { title: 'Users',            href: '/admin/users',          icon: Users, minRole: AdminRole.SUPER_ADMIN },
-  { title: 'Settings',         href: '/admin/settings',       icon: Settings, minRole: AdminRole.SUPER_ADMIN },
+  { title: 'My Account',       href: '/admin/settings',       icon: Settings },
 ];
 
 const ROLE_LABELS: Record<AdminRole, string> = {

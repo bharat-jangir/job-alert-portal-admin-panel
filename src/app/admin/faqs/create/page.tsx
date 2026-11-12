@@ -1,11 +1,12 @@
 'use client';
 
+import { apiFetch, readApiError } from '@/lib/http';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { HelpCircle, ArrowLeft, Save } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const CATEGORIES = ['General', 'Applying', 'Admit Cards', 'Results', 'Answer Keys', 'Eligibility', 'Fees', 'Other'];
 
 export default function CreateFaqPage() {
@@ -28,15 +29,15 @@ export default function CreateFaqPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${API}/api/faqs`, {
+      const res = await apiFetch(`${API}/api/faqs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('Failed to create');
+      if (!res.ok) throw new Error(await readApiError(res, 'Failed to create'));
       router.push('/admin/faqs');
-    } catch {
-      setError('Failed to save FAQ. Please try again.');
+    } catch (err: any) {
+      setError(err?.message && !/^Failed to (create|update)$/.test(err.message) ? err.message : 'Failed to save FAQ. Please try again.');
     } finally {
       setSaving(false);
     }
