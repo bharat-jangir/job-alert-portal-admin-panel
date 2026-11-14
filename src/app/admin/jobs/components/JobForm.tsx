@@ -14,10 +14,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { X } from 'lucide-react';
+import { X, Sparkles, Loader2, Bot, Globe, Eye } from 'lucide-react';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import Editor from '@monaco-editor/react';
 import { SectionsEditor, cleanSections, type Section } from '@/components/SectionsEditor';
+import { JobPreviewModal } from '@/components/JobPreviewModal';
 import { useAuth, AdminRole } from '@/lib/auth-context';
 
 // Define enums to match backend
@@ -94,7 +95,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [htmlCode, setHtmlCode] = useState('');
-  const [organizations, setOrganizations] = useState<{_id: string, name: string}[]>([]);
+  const [organizations, setOrganizations] = useState<{ _id: string, name: string }[]>([]);
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission([AdminRole.PUBLISHER]);
@@ -123,7 +124,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     try {
       const res = await api.get(`/jobs/id/${job._id}/revisions`);
       setRevisions(res.data?.data ?? []);
-    } catch {}
+    } catch { }
   };
   useEffect(() => { loadRevisions(); }, [job?._id]);
 
@@ -178,6 +179,125 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
 
   const [tagInput, setTagInput] = useState(job?.tags?.join(', ') || '');
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
+  const [aiSourceUrl, setAiSourceUrl] = useState(job?.sourceUrl || '');
+  const [aiPostType, setAiPostType] = useState('job');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const handleAiExtract = async () => {
+    if (!aiSourceUrl.trim()) {
+      toast.error('Please enter a valid source URL or PDF link');
+      return;
+    }
+    setIsAiLoading(true);
+    try {
+      const res = await api.post('/scraper/extract', {
+        url: aiSourceUrl.trim(),
+        postType: aiPostType,
+      });
+
+      // Robust unwrap: handles any level of { data: { data: ... } } response wrappers
+      let raw = res.data;
+      while (raw && raw.data && typeof raw.data === 'object' && !raw.title) {
+        raw = raw.data;
+      }
+      const data = raw;
+      if (!data || !data.title) {
+        throw new Error('Could not find structured job fields in response');
+      }
+
+      // Match organization
+      let matchedOrgId = formData.organizationId;
+      let matchedOrgName = data.organization || formData.organization || '';
+      if (data.organization && organizations.length > 0) {
+        const orgSearch = data.organization.toLowerCase();
+        const match = organizations.find(
+          (o) =>
+            o.name.toLowerCase().includes(orgSearch) ||
+            orgSearch.includes(o.name.toLowerCase())
+        );
+        if (match) {
+          matchedOrgId = match._id;
+          matchedOrgName = match.name;
+        }
+      }
+
+      // Match category
+      let matchedCatId = formData.categoryId;
+      const targetSlug = (data.type || aiPostType || 'job').toLowerCase();
+      if (categories.length > 0) {
+        let catMatch = categories.find((c) => (c.slug || '').toLowerCase() === targetSlug);
+        if (!catMatch) {
+          catMatch = categories.find((c) =>
+            targetSlug.includes((c.slug || '').toLowerCase()) ||
+            (c.slug || '').toLowerCase().includes(targetSlug) ||
+            (c.name || '').toLowerCase().includes(targetSlug) ||
+            targetSlug.includes((c.name || '').toLowerCase())
+          );
+        }
+        if (!catMatch && !matchedCatId && categories.length > 0) {
+          catMatch = categories[0];
+        }
+        if (catMatch) matchedCatId = catMatch._id;
+      }
+
+      const newSections =
+        Array.isArray(data.sections) && data.sections.length > 0
+          ? data.sections
+          : formData.sections;
+
+      setFormData((prev) => ({
+        ...prev,
+        title: data.title || prev.title,
+        slug: data.slug || prev.slug,
+        organization: matchedOrgName,
+        organizationId: matchedOrgId,
+        location: data.location || prev.location,
+        salary: data.salary || prev.salary,
+        qualification: data.qualification || prev.qualification,
+        experience: data.experience || prev.experience,
+        lastDate: data.lastDate ? formatDateForInput(data.lastDate) : prev.lastDate,
+        applyLink: data.applyLink || prev.applyLink,
+        description: data.description || prev.description,
+        eligibility: data.eligibility || prev.eligibility,
+        totalVacancy: data.totalVacancy || prev.totalVacancy,
+        ageLimit: data.ageLimit || prev.ageLimit,
+        states: Array.isArray(data.states) && data.states.length > 0 ? data.states.join(', ') : (typeof data.states === 'string' ? data.states : prev.states),
+        tags: Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : prev.tags,
+        importantDates:
+          Array.isArray(data.importantDates) && data.importantDates.length > 0
+            ? data.importantDates.map((d: any) => ({
+                label: d.label,
+                date: formatDateForInput(d.date),
+              }))
+            : prev.importantDates,
+        metaTitle: data.metaTitle || prev.metaTitle,
+        metaDescription: data.metaDescription || prev.metaDescription,
+        sourceUrl: data.sourceUrl || aiSourceUrl.trim(),
+        type: targetSlug,
+        categoryId: matchedCatId,
+        sections: newSections,
+      }));
+
+      if (Array.isArray(data.tags) && data.tags.length > 0) {
+        setTagInput(data.tags.join(', '));
+      }
+
+      toast.success(
+        `🎉 Form populated! ${newSections.length} styled sections generated with high-accuracy SEO tags.`
+      );
+    } catch (err: any) {
+      console.error('AI extraction error:', err);
+      const msg =
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to extract job details';
+      toast.error(msg);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isEditorOpen) {
@@ -230,7 +350,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
   const handleImportantDateChange = (index: number, field: keyof ImportantDate, value: string) => {
     setFormData(prev => ({
       ...prev,
-      importantDates: prev.importantDates.map((date, i) => 
+      importantDates: prev.importantDates.map((date, i) =>
         i === index ? { ...date, [field]: value } : date
       )
     }));
@@ -252,7 +372,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       toast.error('Please fix the errors in the form');
       return;
@@ -282,12 +402,12 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         await api.post('/jobs', formattedData);
         toast.success('Job created successfully');
       }
-      
+
       router.push('/admin/jobs');
       onSuccess();
     } catch (error: any) {
       console.error('Error saving job:', error);
-      
+
       const apiMsg = error.response?.data?.error?.message ?? error.response?.data?.message;
       if (apiMsg) {
         toast.error(Array.isArray(apiMsg) ? apiMsg.join(', ') : String(apiMsg));
@@ -304,7 +424,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
       <div className="p-4 border border-red-500 rounded-md">
         <h2 className="text-red-500 font-bold">Error Loading Form</h2>
         <p className="text-sm text-red-400">{error.message}</p>
-        <button 
+        <button
           onClick={() => setError(null)}
           className="mt-2 px-4 py-2 bg-red-500 text-white rounded-md"
         >
@@ -316,6 +436,94 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* AI Auto-Fill Card with Gemini Flash */}
+      <div className="rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50/80 via-purple-50/40 to-blue-50/70 p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600 text-white rounded-lg shadow-sm">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 text-base flex items-center gap-2">
+                Auto-Fill from URL with Gemini AI
+                <span className="text-[11px] font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200">
+                  Gemini Flash
+                </span>
+              </h3>
+              <p className="text-xs text-gray-600">
+                Paste any government recruitment page or PDF circular to extract titles, dates, fees, vacancies & section blocks.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPreviewOpen(true)}
+            className="border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-50 shadow-sm flex items-center gap-1.5 self-start sm:self-center shrink-0"
+          >
+            <Eye className="w-4 h-4" />
+            <span>Preview Post</span>
+          </Button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+          <div className="relative flex-1">
+            <Globe className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input
+              value={aiSourceUrl}
+              onChange={(e) => setAiSourceUrl(e.target.value)}
+              placeholder="Paste source URL or official PDF link (e.g., https://...)"
+              className="pl-9 bg-white border-indigo-200 focus:border-indigo-500 text-sm shadow-sm"
+              disabled={isAiLoading}
+            />
+          </div>
+
+          <select
+            className="p-2 border border-indigo-200 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700 shadow-sm"
+            value={aiPostType}
+            onChange={(e) => setAiPostType(e.target.value)}
+            disabled={isAiLoading}
+          >
+            <option value="job">Type: Job Post</option>
+            <option value="online-form">Type: Online Form</option>
+            <option value="admit-card">Type: Admit Card</option>
+            <option value="result">Type: Result</option>
+            <option value="answer-key">Type: Answer Key</option>
+            <option value="syllabus">Type: Syllabus</option>
+          </select>
+
+          <Button
+            type="button"
+            onClick={handleAiExtract}
+            disabled={isAiLoading || !aiSourceUrl.trim()}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-2 whitespace-nowrap px-4"
+          >
+            {isAiLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Extracting...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Auto-Fill Form</span>
+              </>
+            )}
+          </Button>
+        </div>
+
+        {isAiLoading && (
+          <div className="flex items-center gap-2 text-xs text-indigo-800 bg-indigo-100/70 p-3 rounded-lg border border-indigo-200 animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin text-indigo-600 shrink-0" />
+            <span>
+              Scraping page/PDF content and extracting structured data with Google Gemini Flash... (typically takes 5–15 seconds)
+            </span>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border bg-gray-50 p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -660,6 +868,16 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         <Input value={formData.states} onChange={(e) => handleChange('states', e.target.value)} placeholder="Bihar, Jharkhand" />
       </div>
 
+      <div>
+        <label className="block text-sm font-medium mb-1">Source URL <span className="text-gray-400 font-normal">(original job notification or circular URL)</span></label>
+        <Input
+          value={formData.sourceUrl || ''}
+          onChange={(e) => handleChange('sourceUrl', e.target.value)}
+          placeholder="https://example.gov.in/notifications/job-circular.pdf"
+        />
+        {errors.sourceUrl && <p className="text-red-500 text-sm mt-1">{errors.sourceUrl}</p>}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium mb-1">Canonical URL <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -763,21 +981,40 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         </details>
       )}
 
-      <div className="flex justify-end space-x-4">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={() => setIsPreviewOpen(true)}
+          className="w-full sm:w-auto border-indigo-300 text-indigo-700 hover:bg-indigo-50 flex items-center justify-center gap-2 shadow-sm"
         >
-          Cancel
+          <Eye className="w-4 h-4" />
+          Preview Live Post
         </Button>
-        <Button 
-          type="submit" 
-          disabled={isLoading}
-        >
-          {isLoading ? 'Saving...' : job ? 'Update Job' : 'Create Job'}
-        </Button>
+
+        <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Saving...' : job ? 'Update Job' : 'Create Job'}
+          </Button>
+        </div>
       </div>
+
+      {/* Live Preview Modal */}
+      <JobPreviewModal
+        job={formData}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </form>
   );
 } 

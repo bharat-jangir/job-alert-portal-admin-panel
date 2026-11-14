@@ -15,7 +15,8 @@ import {
 import { toast } from 'sonner';
 import api from '@/lib/axios';
 import { useDebounce } from '@/hooks/useDebounce';
-import { Search, Loader2, Megaphone, Copy } from 'lucide-react';
+import { Search, Loader2, Megaphone, Copy, Eye } from 'lucide-react';
+import { JobPreviewModal } from '@/components/JobPreviewModal';
 
 interface Job {
   _id: string;
@@ -46,7 +47,26 @@ export default function JobsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalJobs, setTotalJobs] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [previewJob, setPreviewJob] = useState<any>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
   const itemsPerPage = 10;
+
+  const handleOpenPreview = async (jobItem: Job) => {
+    setLoadingPreviewId(jobItem._id);
+    try {
+      const res = await api.get(`/jobs/id/${jobItem._id}`);
+      const fullJob = res.data?.data ?? res.data;
+      setPreviewJob(fullJob);
+      setIsPreviewOpen(true);
+    } catch (err) {
+      console.error('Failed to load full post for preview:', err);
+      setPreviewJob(jobItem);
+      setIsPreviewOpen(true);
+    } finally {
+      setLoadingPreviewId(null);
+    }
+  };
 
   // Create a debounced search term
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -298,6 +318,20 @@ export default function JobsPage() {
                       <Button variant="outline" size="sm" onClick={() => handleDuplicate(job._id)} title="Duplicate as draft">
                         <Copy className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenPreview(job)}
+                        disabled={loadingPreviewId === job._id}
+                        title="Preview post"
+                        className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                      >
+                        {loadingPreviewId === job._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
                       <Link href={`/admin/jobs/${job._id}/edit`}>
                         <Button variant="outline" size="sm">Edit</Button>
                       </Link>
@@ -342,6 +376,13 @@ export default function JobsPage() {
           Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalJobs)} of {totalJobs} jobs
         </div>
       )}
+
+      {/* Post Preview Modal */}
+      <JobPreviewModal
+        job={previewJob}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 } 
