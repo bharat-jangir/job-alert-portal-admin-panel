@@ -1,9 +1,29 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowDown, ArrowUp, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2, X, Palette, RotateCcw } from 'lucide-react';
+
+/**
+ * Styling and design configuration for an individual section / element.
+ */
+export type BlockStyles = {
+  textColor?: string;
+  bgColor?: string;
+  borderColor?: string;
+  borderWidth?: string;
+  borderStyle?: 'none' | 'solid' | 'dashed' | 'dotted' | 'double';
+  borderRadius?: string;
+  padding?: string;
+  margin?: string;
+  fontSize?: string;
+  fontWeight?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  className?: string;
+  customCss?: string;
+};
 
 /**
  * Structured post body. Mirrors the backend zod schema (post-sections.schema.ts).
@@ -11,34 +31,34 @@ import { ArrowDown, ArrowUp, Plus, Trash2, X } from 'lucide-react';
  */
 type Align = 'left' | 'center' | 'right';
 export type Leaf =
-  | { type: 'paragraph'; text: string }
-  | { type: 'heading'; level: 2 | 3 | 4; text: string }
-  | { type: 'list'; title?: string; ordered: boolean; items: string[] }
-  | { type: 'steps'; title?: string; items: string[] }
-  | { type: 'image'; src: string; alt: string; caption?: string; link?: string }
-  | { type: 'button'; label: string; url: string; style: 'primary' | 'secondary' | 'outline'; align: Align }
-  | { type: 'keyvalue'; title?: string; items: { label: string; value: string }[] }
-  | { type: 'callout'; tone: 'info' | 'warning' | 'success'; text: string }
-  | { type: 'quote'; text: string; cite?: string; style: 'quote' | 'pull' }
-  | { type: 'links'; title?: string; items: { label: string; url: string }[] }
-  | { type: 'download'; label: string; url: string; fileType?: string; size?: string }
-  | { type: 'separator'; style: 'line' | 'dots' | 'space' };
+  | { type: 'paragraph'; text: string; styles?: BlockStyles }
+  | { type: 'heading'; level: 2 | 3 | 4; text: string; styles?: BlockStyles }
+  | { type: 'list'; title?: string; ordered: boolean; items: string[]; styles?: BlockStyles }
+  | { type: 'steps'; title?: string; items: string[]; styles?: BlockStyles }
+  | { type: 'image'; src: string; alt: string; caption?: string; link?: string; styles?: BlockStyles }
+  | { type: 'button'; label: string; url: string; style: 'primary' | 'secondary' | 'outline'; align: Align; styles?: BlockStyles }
+  | { type: 'keyvalue'; title?: string; items: { label: string; value: string }[]; styles?: BlockStyles }
+  | { type: 'callout'; tone: 'info' | 'warning' | 'success'; text: string; styles?: BlockStyles }
+  | { type: 'quote'; text: string; cite?: string; style: 'quote' | 'pull'; styles?: BlockStyles }
+  | { type: 'links'; title?: string; items: { label: string; url: string }[]; styles?: BlockStyles }
+  | { type: 'download'; label: string; url: string; fileType?: string; size?: string; styles?: BlockStyles }
+  | { type: 'separator'; style: 'line' | 'dots' | 'space'; styles?: BlockStyles };
 
 export type Section =
   | Leaf
-  | { type: 'table'; title?: string; headers: string[]; rows: string[][]; align?: Align[] }
-  | { type: 'faq'; title?: string; items: { question: string; answer: string }[] }
-  | { type: 'accordion'; title?: string; items: { title: string; content: string }[] }
-  | { type: 'timeline'; title?: string; items: { date: string; title: string; text?: string }[] }
-  | { type: 'gallery'; title?: string; images: { src: string; alt: string; caption?: string }[] }
-  | { type: 'video'; url: string; title: string; caption?: string }
-  | { type: 'audio'; src: string; title?: string }
-  | { type: 'embed'; url: string; title: string; caption?: string; height: number }
-  | { type: 'code'; code: string; language?: string }
-  | { type: 'toc'; title?: string }
-  | { type: 'ad'; slot: string }
-  | { type: 'columns'; columns: { blocks: Leaf[] }[] }
-  | { type: 'html'; html: string };
+  | { type: 'table'; title?: string; headers: string[]; rows: string[][]; align?: Align[]; styles?: BlockStyles }
+  | { type: 'faq'; title?: string; items: { question: string; answer: string }[]; styles?: BlockStyles }
+  | { type: 'accordion'; title?: string; items: { title: string; content: string }[]; styles?: BlockStyles }
+  | { type: 'timeline'; title?: string; items: { date: string; title: string; text?: string }[]; styles?: BlockStyles }
+  | { type: 'gallery'; title?: string; images: { src: string; alt: string; caption?: string }[]; styles?: BlockStyles }
+  | { type: 'video'; url: string; title: string; caption?: string; styles?: BlockStyles }
+  | { type: 'audio'; src: string; title?: string; styles?: BlockStyles }
+  | { type: 'embed'; url: string; title: string; caption?: string; height: number; styles?: BlockStyles }
+  | { type: 'code'; code: string; language?: string; styles?: BlockStyles }
+  | { type: 'toc'; title?: string; styles?: BlockStyles }
+  | { type: 'ad'; slot: string; styles?: BlockStyles }
+  | { type: 'columns'; columns: { blocks: Leaf[] }[]; styles?: BlockStyles }
+  | { type: 'html'; html: string; styles?: BlockStyles };
 
 type BlockDef = { type: Section['type']; label: string; make: () => Section };
 const B = (type: Section['type'], label: string, make: () => Section): BlockDef => ({ type, label, make });
@@ -165,6 +185,61 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <label className="block text-xs font-medium text-gray-600 space-y-1"><span>{label}</span>{children}</label>;
 }
 const FORMAT_HINT = 'Formatting: **bold**  *italic*  [link text](https://…)  `code`  ~~strike~~';
+
+function ColumnLeafBlock({
+  b,
+  onUpdate,
+  onDelete,
+}: {
+  b: Leaf;
+  onUpdate: (nb: Leaf) => void;
+  onDelete: () => void;
+}) {
+  const [openStyle, setOpenStyle] = useState(false);
+  return (
+    <div className="border rounded bg-white p-2">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400">{b.type}</span>
+          <button
+            type="button"
+            onClick={() => setOpenStyle(!openStyle)}
+            className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] transition-colors ${
+              hasStyles(b.styles)
+                ? 'bg-blue-100 text-blue-700 font-medium'
+                : openStyle
+                ? 'bg-gray-200 text-gray-800'
+                : 'text-gray-400 hover:text-gray-700'
+            }`}
+            title="Style block"
+          >
+            <Palette className="h-2.5 w-2.5" />
+            <span>Style</span>
+            {hasStyles(b.styles) && <span className="w-1 h-1 rounded-full bg-blue-600" />}
+          </button>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onDelete}
+          aria-label="Delete block"
+        >
+          <Trash2 className="h-3 w-3 text-red-500" />
+        </Button>
+      </div>
+      {openStyle && (
+        <BlockStylesEditor
+          styles={b.styles}
+          onChange={(newStyles) => onUpdate({ ...b, styles: newStyles })}
+          onClose={() => setOpenStyle(false)}
+        />
+      )}
+      <BlockBody s={b} set={onUpdate as any} />
+    </div>
+  );
+}
 
 function BlockBody({ s, set }: { s: Section; set: (s: Section) => void }) {
   switch (s.type) {
@@ -481,13 +556,12 @@ function BlockBody({ s, set }: { s: Section; set: (s: Section) => void }) {
                   </select>
                 </div>
                 {col.blocks.map((b, k) => (
-                  <div key={k} className="border rounded bg-white p-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] uppercase tracking-wide text-gray-400">{b.type}</span>
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.filter((_, j) => j !== k) } : cc)) })} aria-label="Delete block"><Trash2 className="h-3 w-3 text-red-500" /></Button>
-                    </div>
-                    <BlockBody s={b} set={(nb) => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.map((x, j) => (j === k ? (nb as Leaf) : x)) } : cc)) })} />
-                  </div>
+                  <ColumnLeafBlock
+                    key={k}
+                    b={b}
+                    onUpdate={(nb) => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.map((x, j) => (j === k ? nb : x)) } : cc)) })}
+                    onDelete={() => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.filter((_, j) => j !== k) } : cc)) })}
+                  />
                 ))}
               </div>
             ))}
@@ -503,70 +577,379 @@ function BlockBody({ s, set }: { s: Section; set: (s: Section) => void }) {
   }
 }
 
+/** Check if any styling property is populated */
+export function hasStyles(styles?: BlockStyles): boolean {
+  if (!styles) return false;
+  return Object.values(styles).some((v) => typeof v === 'string' && v.trim().length > 0);
+}
+
+/** Prunes empty/blank styling fields */
+export function cleanBlockStyles(styles?: BlockStyles): BlockStyles | undefined {
+  if (!styles) return undefined;
+  const out: BlockStyles = {};
+  if (styles.textColor?.trim()) out.textColor = styles.textColor.trim();
+  if (styles.bgColor?.trim()) out.bgColor = styles.bgColor.trim();
+  if (styles.borderColor?.trim()) out.borderColor = styles.borderColor.trim();
+  if (styles.borderWidth?.trim()) out.borderWidth = styles.borderWidth.trim();
+  if (styles.borderStyle && styles.borderStyle !== 'none') out.borderStyle = styles.borderStyle;
+  if (styles.borderRadius?.trim()) out.borderRadius = styles.borderRadius.trim();
+  if (styles.padding?.trim()) out.padding = styles.padding.trim();
+  if (styles.margin?.trim()) out.margin = styles.margin.trim();
+  if (styles.fontSize?.trim()) out.fontSize = styles.fontSize.trim();
+  if (styles.fontWeight?.trim()) out.fontWeight = styles.fontWeight.trim();
+  if (styles.textAlign) out.textAlign = styles.textAlign;
+  if (styles.className?.trim()) out.className = styles.className.trim();
+  if (styles.customCss?.trim()) out.customCss = styles.customCss.trim();
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Visual styling editor panel for individual section/element */
+export function BlockStylesEditor({
+  styles,
+  onChange,
+  onClose,
+}: {
+  styles?: BlockStyles;
+  onChange: (s?: BlockStyles) => void;
+  onClose: () => void;
+}) {
+  const cur = styles || {};
+  const update = (patch: Partial<BlockStyles>) => {
+    const next = { ...cur, ...patch };
+    onChange(next);
+  };
+  const clearAll = () => {
+    onChange(undefined);
+  };
+
+  const bgPresets = [
+    { label: 'Transparent', value: '' },
+    { label: 'Light Gray', value: '#f3f4f6' },
+    { label: 'Light Blue', value: '#eff6ff' },
+    { label: 'Light Yellow', value: '#fefce8' },
+    { label: 'Light Green', value: '#f0fdf4' },
+    { label: 'Light Red', value: '#fef2f2' },
+    { label: 'Light Purple', value: '#faf5ff' },
+    { label: 'Dark', value: '#111827' },
+  ];
+
+  const textPresets = [
+    { label: 'Default', value: '' },
+    { label: 'Dark Gray', value: '#1f2937' },
+    { label: 'Blue', value: '#1d4ed8' },
+    { label: 'Green', value: '#15803d' },
+    { label: 'Red', value: '#b91c1c' },
+    { label: 'Amber', value: '#b45309' },
+    { label: 'Purple', value: '#7e22ce' },
+    { label: 'White', value: '#ffffff' },
+  ];
+
+  return (
+    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 my-2 text-xs space-y-3 shadow-inner">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+          <Palette className="h-4 w-4 text-blue-600" />
+          <span>Section Styling & CSS</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasStyles(styles) && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-red-600 hover:text-red-700 flex items-center gap-1 text-[11px] font-medium"
+            >
+              <RotateCcw className="h-3 w-3" /> Reset
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-600 hover:text-slate-900 text-[11px] font-medium px-2 py-0.5 rounded border bg-white shadow-sm"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Background Color */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Background Color</label>
+          <div className="flex flex-wrap gap-1.5 items-center mb-1.5">
+            {bgPresets.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => update({ bgColor: p.value || undefined })}
+                className={`w-5 h-5 rounded-full border border-slate-300 transition-all ${
+                  (cur.bgColor || '') === p.value ? 'ring-2 ring-blue-500 scale-110' : ''
+                }`}
+                style={{ backgroundColor: p.value || '#ffffff' }}
+                title={p.label}
+              />
+            ))}
+          </div>
+          <Input
+            value={cur.bgColor || ''}
+            placeholder="#f3f4f6 or rgba(...)"
+            onChange={(e) => update({ bgColor: e.target.value })}
+            className="h-7 text-xs bg-white"
+          />
+        </div>
+
+        {/* Text Color */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Text Color</label>
+          <div className="flex flex-wrap gap-1.5 items-center mb-1.5">
+            {textPresets.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => update({ textColor: p.value || undefined })}
+                className={`w-5 h-5 rounded-full border border-slate-300 transition-all ${
+                  (cur.textColor || '') === p.value ? 'ring-2 ring-blue-500 scale-110' : ''
+                }`}
+                style={{ backgroundColor: p.value || '#000000' }}
+                title={p.label}
+              />
+            ))}
+          </div>
+          <Input
+            value={cur.textColor || ''}
+            placeholder="#1d4ed8 or color"
+            onChange={(e) => update({ textColor: e.target.value })}
+            className="h-7 text-xs bg-white"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 border-t border-slate-200">
+        {/* Padding */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Padding</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.padding || ''}
+            onChange={(e) => update({ padding: e.target.value || undefined })}
+          >
+            <option value="">Default</option>
+            <option value="0px">None (0px)</option>
+            <option value="8px">Small (8px)</option>
+            <option value="16px">Medium (16px)</option>
+            <option value="24px">Large (24px)</option>
+            <option value="32px">XL (32px)</option>
+          </select>
+        </div>
+
+        {/* Margin Bottom */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Margin Bottom</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.margin || ''}
+            onChange={(e) => update({ margin: e.target.value || undefined })}
+          >
+            <option value="">Default</option>
+            <option value="0px">None (0px)</option>
+            <option value="8px">Small (8px)</option>
+            <option value="16px">Medium (16px)</option>
+            <option value="24px">Large (24px)</option>
+          </select>
+        </div>
+
+        {/* Text Align */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Text Alignment</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.textAlign || ''}
+            onChange={(e) => update({ textAlign: (e.target.value as any) || undefined })}
+          >
+            <option value="">Default</option>
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+            <option value="justify">Justify</option>
+          </select>
+        </div>
+
+        {/* Font Weight */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Font Weight</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.fontWeight || ''}
+            onChange={(e) => update({ fontWeight: e.target.value || undefined })}
+          >
+            <option value="">Default</option>
+            <option value="normal">Normal</option>
+            <option value="500">Medium</option>
+            <option value="600">Semibold</option>
+            <option value="bold">Bold</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 border-t border-slate-200">
+        {/* Border Width */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Border Width</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.borderWidth || ''}
+            onChange={(e) => update({ borderWidth: e.target.value || undefined })}
+          >
+            <option value="">None</option>
+            <option value="1px">1px</option>
+            <option value="2px">2px</option>
+            <option value="3px">3px</option>
+            <option value="4px">4px</option>
+          </select>
+        </div>
+
+        {/* Border Style */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Border Style</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.borderStyle || 'solid'}
+            onChange={(e) => update({ borderStyle: (e.target.value as any) || undefined })}
+          >
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="double">Double</option>
+          </select>
+        </div>
+
+        {/* Border Color */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Border Color</label>
+          <Input
+            value={cur.borderColor || ''}
+            placeholder="#e2e8f0 or color"
+            onChange={(e) => update({ borderColor: e.target.value })}
+            className="h-7 text-xs bg-white"
+          />
+        </div>
+
+        {/* Border Radius */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Border Radius</label>
+          <select
+            className="w-full border rounded px-2 py-1 bg-white text-xs"
+            value={cur.borderRadius || ''}
+            onChange={(e) => update({ borderRadius: e.target.value || undefined })}
+          >
+            <option value="">Default</option>
+            <option value="0px">None (0px)</option>
+            <option value="4px">Small (4px)</option>
+            <option value="8px">Medium (8px)</option>
+            <option value="12px">Large (12px)</option>
+            <option value="16px">XL (16px)</option>
+            <option value="9999px">Pill / Circle</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 border-t border-slate-200">
+        {/* Custom CSS / Tailwind classes */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">
+            Custom Classes (Tailwind / CSS)
+          </label>
+          <Input
+            value={cur.className || ''}
+            placeholder="e.g. shadow-md hover:shadow-lg transition-all"
+            onChange={(e) => update({ className: e.target.value })}
+            className="h-7 text-xs bg-white font-mono"
+          />
+        </div>
+
+        {/* Inline CSS Rules */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">
+            Inline CSS Rules
+          </label>
+          <Input
+            value={cur.customCss || ''}
+            placeholder="e.g. box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #2563eb;"
+            onChange={(e) => update({ customCss: e.target.value })}
+            className="h-7 text-xs bg-white font-mono"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Drops empty rows/blocks so the API's validation never trips on half-filled blocks. */
 export function cleanSections(sections: Section[]): Section[] {
   const out: Section[] = [];
   for (const s of sections) {
+    const styles = cleanBlockStyles(s.styles);
+    const withSt = <T extends Section>(block: T): T => (styles ? { ...block, styles } : block);
+
     switch (s.type) {
-      case 'paragraph': if (s.text.trim()) out.push(s); break;
-      case 'heading': if (s.text.trim()) out.push(s); break;
-      case 'callout': if (s.text.trim()) out.push(s); break;
-      case 'html': if (s.html.trim()) out.push(s); break;
-      case 'code': if (s.code.trim()) out.push({ ...s, language: s.language?.trim() || undefined }); break;
-      case 'quote': if (s.text.trim()) out.push({ ...s, cite: s.cite?.trim() || undefined }); break;
-      case 'image': if (s.src.trim()) out.push({ ...s, src: s.src.trim(), caption: s.caption?.trim() || undefined, link: s.link?.trim() || undefined }); break;
+      case 'paragraph': if (s.text.trim()) out.push(withSt(s)); break;
+      case 'heading': if (s.text.trim()) out.push(withSt(s)); break;
+      case 'callout': if (s.text.trim()) out.push(withSt(s)); break;
+      case 'html': if (s.html.trim()) out.push(withSt(s)); break;
+      case 'code': if (s.code.trim()) out.push(withSt({ ...s, language: s.language?.trim() || undefined })); break;
+      case 'quote': if (s.text.trim()) out.push(withSt({ ...s, cite: s.cite?.trim() || undefined })); break;
+      case 'image': if (s.src.trim()) out.push(withSt({ ...s, src: s.src.trim(), caption: s.caption?.trim() || undefined, link: s.link?.trim() || undefined })); break;
       case 'gallery': {
         const images = s.images.filter((i) => i.src.trim()).map((i) => ({ ...i, src: i.src.trim(), caption: i.caption?.trim() || undefined }));
-        if (images.length) out.push({ ...s, title: s.title?.trim() || undefined, images });
+        if (images.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, images }));
         break;
       }
-      case 'video': if (s.url.trim() && s.title.trim()) out.push({ ...s, caption: s.caption?.trim() || undefined }); break;
-      case 'audio': if (s.src.trim()) out.push({ ...s, title: s.title?.trim() || undefined }); break;
-      case 'embed': if (s.url.trim() && s.title.trim()) out.push({ ...s, caption: s.caption?.trim() || undefined }); break;
-      case 'download': if (s.label.trim() && s.url.trim()) out.push({ ...s, fileType: s.fileType?.trim() || undefined, size: s.size?.trim() || undefined }); break;
-      case 'button': if (s.label.trim() && s.url.trim()) out.push(s); break;
-      case 'ad': if (s.slot.trim()) out.push(s); break;
-      case 'separator': out.push(s); break;
-      case 'toc': out.push({ ...s, title: s.title?.trim() || undefined }); break;
+      case 'video': if (s.url.trim() && s.title.trim()) out.push(withSt({ ...s, caption: s.caption?.trim() || undefined })); break;
+      case 'audio': if (s.src.trim()) out.push(withSt({ ...s, title: s.title?.trim() || undefined })); break;
+      case 'embed': if (s.url.trim() && s.title.trim()) out.push(withSt({ ...s, caption: s.caption?.trim() || undefined })); break;
+      case 'download': if (s.label.trim() && s.url.trim()) out.push(withSt({ ...s, fileType: s.fileType?.trim() || undefined, size: s.size?.trim() || undefined })); break;
+      case 'button': if (s.label.trim() && s.url.trim()) out.push(withSt(s)); break;
+      case 'ad': if (s.slot.trim()) out.push(withSt(s)); break;
+      case 'separator': out.push(withSt(s)); break;
+      case 'toc': out.push(withSt({ ...s, title: s.title?.trim() || undefined })); break;
       case 'keyvalue': {
         const items = s.items.filter((i) => i.label.trim() && i.value.trim());
-        if (items.length) out.push({ ...s, title: s.title?.trim() || undefined, items });
+        if (items.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, items }));
         break;
       }
       case 'timeline': {
         const items = s.items.filter((i) => i.date.trim() && i.title.trim()).map((i) => ({ ...i, text: i.text?.trim() || undefined }));
-        if (items.length) out.push({ ...s, title: s.title?.trim() || undefined, items });
+        if (items.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, items }));
         break;
       }
       case 'accordion': {
         const items = s.items.filter((i) => i.title.trim() && i.content.trim());
-        if (items.length) out.push({ ...s, title: s.title?.trim() || undefined, items });
+        if (items.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, items }));
         break;
       }
       case 'columns': {
         const columns = s.columns.map((c) => ({ blocks: cleanSections(c.blocks) as Leaf[] }));
-        if (columns.some((c) => c.blocks.length)) out.push({ ...s, columns });
+        if (columns.some((c) => c.blocks.length)) out.push(withSt({ ...s, columns }));
         break;
       }
       case 'list':
       case 'steps': {
         const items = s.items.map((i) => i.trim()).filter(Boolean);
-        if (items.length) out.push({ ...s, title: s.title?.trim() || undefined, items });
+        if (items.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, items }));
         break;
       }
       case 'table': {
         const rows = s.rows.filter((r) => r.some((c) => c.trim()));
-        if (rows.length) out.push({ ...s, title: s.title?.trim() || undefined, rows });
+        if (rows.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, rows }));
         break;
       }
       case 'links': {
         const items = s.items.filter((i) => i.label.trim() && i.url.trim());
-        if (items.length) out.push({ ...s, title: s.title?.trim() || undefined, items });
+        if (items.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, items }));
         break;
       }
       case 'faq': {
         const items = s.items.filter((i) => i.question.trim() && i.answer.trim());
-        if (items.length) out.push({ ...s, title: s.title?.trim() || undefined, items });
+        if (items.length) out.push(withSt({ ...s, title: s.title?.trim() || undefined, items }));
         break;
       }
     }
@@ -575,6 +958,8 @@ export function cleanSections(sections: Section[]): Section[] {
 }
 
 export function SectionsEditor({ value, onChange, postType }: { value: Section[]; onChange: (v: Section[]) => void; postType: string }) {
+  const [openStyleId, setOpenStyleId] = useState<number | null>(null);
+
   const applyTemplate = () => {
     if (value.length && !confirm('Replace the current blocks with the template?')) return;
     onChange(JSON.parse(JSON.stringify(TEMPLATES[postType] ?? TEMPLATES.default)));
@@ -591,15 +976,50 @@ export function SectionsEditor({ value, onChange, postType }: { value: Section[]
       {value.length === 0 && <p className="text-sm text-gray-500 border border-dashed rounded-md p-4 text-center">No blocks yet. Add one below or start from a template.</p>}
 
       {value.map((s, i) => (
-        <div key={i} className="border rounded-lg bg-white">
+        <div key={i} className="border rounded-lg bg-white shadow-sm">
           <div className="flex items-center justify-between px-3 py-1.5 border-b bg-gray-50 rounded-t-lg">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{s.type}</span>
-            <div className="flex">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">{s.type}</span>
+              {hasStyles(s.styles) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium">
+                  <Palette className="h-2.5 w-2.5" />
+                  Styled
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setOpenStyleId(openStyleId === i ? null : i)}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                  openStyleId === i
+                    ? 'bg-blue-600 text-white font-medium'
+                    : hasStyles(s.styles)
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                    : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+                title="Customize Section Styles & CSS"
+              >
+                <Palette className="h-3.5 w-3.5" />
+                <span>Style</span>
+              </button>
+              <div className="h-4 w-px bg-gray-200 mx-0.5" />
               <Button type="button" variant="ghost" size="icon" disabled={i === 0} onClick={() => onChange(moveItem(value, i, -1))} aria-label="Move up"><ArrowUp className="h-4 w-4" /></Button>
               <Button type="button" variant="ghost" size="icon" disabled={i === value.length - 1} onClick={() => onChange(moveItem(value, i, 1))} aria-label="Move down"><ArrowDown className="h-4 w-4" /></Button>
               <Button type="button" variant="ghost" size="icon" onClick={() => onChange(value.filter((_, k) => k !== i))} aria-label="Delete block"><Trash2 className="h-4 w-4 text-red-500" /></Button>
             </div>
           </div>
+
+          {openStyleId === i && (
+            <div className="px-3 pt-2">
+              <BlockStylesEditor
+                styles={s.styles}
+                onChange={(next) => onChange(value.map((x, k) => (k === i ? { ...x, styles: next } : x)))}
+                onClose={() => setOpenStyleId(null)}
+              />
+            </div>
+          )}
+
           <div className="p-3">
             <BlockBody s={s} set={(next) => onChange(value.map((x, k) => (k === i ? next : x)))} />
           </div>
