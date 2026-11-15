@@ -17,6 +17,7 @@ import api from '@/lib/axios';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Search, Loader2, Megaphone, Copy, Eye } from 'lucide-react';
 import { JobPreviewModal } from '@/components/JobPreviewModal';
+import { AutoDiscoveryBar } from './components/AutoDiscoveryBar';
 
 interface Job {
   _id: string;
@@ -221,6 +222,8 @@ export default function JobsPage() {
           <Button>Create New Job</Button>
         </Link>
       </div>
+
+      <AutoDiscoveryBar onJobsUpdated={fetchJobs} />
 
       <div className="mb-4 relative">
         <div className="relative max-w-sm">

@@ -658,7 +658,15 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">Last Date to Apply</label>
+          <label className="block text-sm font-medium mb-2">
+            {formData.type === 'admit-card'
+              ? 'Download Last Date / Exam Date'
+              : formData.type === 'result'
+              ? 'Result Declared Date'
+              : formData.type === 'answer-key'
+              ? 'Objection Last Date'
+              : 'Last Date to Apply'}
+          </label>
           <Input
             type="datetime-local"
             value={formData.lastDate}
@@ -669,11 +677,32 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-2">Apply Link</label>
+        <label className="block text-sm font-medium mb-2">
+          {formData.type === 'admit-card'
+            ? 'Admit Card Download Link'
+            : formData.type === 'result'
+            ? 'Result Check Link'
+            : formData.type === 'answer-key'
+            ? 'Answer Key Download Link'
+            : formData.type === 'syllabus'
+            ? 'Syllabus Download Link'
+            : formData.type === 'admission'
+            ? 'Admission Portal Link'
+            : 'Apply Online Link'}
+          <span className="text-gray-400 font-normal ml-2">(Primary top-right action button link)</span>
+        </label>
         <Input
           value={formData.applyLink}
           onChange={(e) => handleChange('applyLink', e.target.value)}
-          placeholder="https://example.com/apply"
+          placeholder={
+            formData.type === 'admit-card'
+              ? 'https://example.gov.in/download-admit-card'
+              : formData.type === 'result'
+              ? 'https://example.gov.in/check-result'
+              : formData.type === 'answer-key'
+              ? 'https://example.gov.in/answer-key-pdf'
+              : 'https://example.com/apply'
+          }
         />
         {errors.applyLink && <p className="text-red-500 text-sm mt-1">{errors.applyLink}</p>}
       </div>

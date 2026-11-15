@@ -3,7 +3,7 @@
 import { apiFetch } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Megaphone, ExternalLink, XCircle } from 'lucide-react';
+import { Megaphone, ExternalLink, XCircle, Pencil } from 'lucide-react';
 
 interface Job {
   _id: string;
@@ -14,6 +14,7 @@ interface Job {
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const PUBLIC_SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 export default function AdminBulletinsPage() {
   const [bulletins, setBulletins] = useState<Job[]>([]);
@@ -115,12 +116,21 @@ export default function AdminBulletinsPage() {
 
                   {/* Actions */}
                   <div className="col-span-2 flex justify-center items-center gap-2">
-                    <Link
-                      href={`/jobs/${job.slug}`}
+                    <a
+                      href={`${PUBLIC_SITE_URL}/jobs/${job.slug}`}
                       target="_blank"
+                      rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition"
+                      title="View on Public Site"
                     >
                       <ExternalLink className="h-3.5 w-3.5" /> View
+                    </a>
+                    <Link
+                      href={`/admin/jobs/${job._id}/edit`}
+                      className="flex items-center gap-1 text-xs text-gray-700 hover:bg-gray-100 px-2 py-1 rounded transition"
+                      title="Edit Post"
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Edit
                     </Link>
                     <button
                       onClick={() => removeFromBulletin(job._id)}

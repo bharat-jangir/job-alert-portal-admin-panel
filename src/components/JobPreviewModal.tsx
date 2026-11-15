@@ -141,6 +141,45 @@ function renderInlineText(text?: string) {
   return <>{parts}</>;
 }
 
+// Resolves context-aware action button text based on post type
+function getActionLabel(type?: string, title?: string): string {
+  const t = (type || '').toLowerCase().trim();
+  const lowerTitle = (title || '').toLowerCase();
+
+  if (t === 'admit-card' || lowerTitle.includes('admit card') || lowerTitle.includes('hall ticket') || lowerTitle.includes('call letter')) {
+    return 'Download Admit Card';
+  }
+  if (t === 'result' || lowerTitle.includes('result') || lowerTitle.includes('score card') || lowerTitle.includes('merit list')) {
+    return 'Check Result';
+  }
+  if (t === 'answer-key' || lowerTitle.includes('answer key') || lowerTitle.includes('ans key') || lowerTitle.includes('objection')) {
+    return 'Check Answer Key';
+  }
+  if (t === 'syllabus' || lowerTitle.includes('syllabus') || lowerTitle.includes('exam pattern')) {
+    return 'Download Syllabus';
+  }
+  if (t === 'admission' || lowerTitle.includes('admission')) {
+    return 'Apply for Admission';
+  }
+  return 'Apply Online';
+}
+
+function getDateLabel(type?: string, title?: string): string {
+  const t = (type || '').toLowerCase().trim();
+  const lowerTitle = (title || '').toLowerCase();
+
+  if (t === 'admit-card' || lowerTitle.includes('admit card') || lowerTitle.includes('hall ticket')) {
+    return 'Download Last Date';
+  }
+  if (t === 'result' || lowerTitle.includes('result')) {
+    return 'Result Declared Date';
+  }
+  if (t === 'answer-key' || lowerTitle.includes('answer key')) {
+    return 'Objection Last Date';
+  }
+  return 'Last Date to Apply';
+}
+
 // Resolves block styles into style object
 function resolveBlockStyles(styles?: any): React.CSSProperties {
   if (!styles || typeof styles !== 'object') return {};
@@ -445,7 +484,7 @@ export function JobPreviewModal({ job, open, onOpenChange }: JobPreviewModalProp
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-6 rounded-lg text-sm transition shadow-sm whitespace-nowrap self-start"
                       >
-                        Apply Online
+                        {getActionLabel(job.type, job.title)}
                         <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
                       </a>
                     )}
@@ -464,7 +503,7 @@ export function JobPreviewModal({ job, open, onOpenChange }: JobPreviewModalProp
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-2 p-3 bg-blue-50/80 rounded-lg border border-blue-100 text-xs">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-blue-600" />
-                      <span className="text-slate-700">Last Date to Apply:</span>
+                      <span className="text-slate-700">{getDateLabel(job.type, job.title)}:</span>
                       <span
                         className={cn(
                           'font-semibold',
