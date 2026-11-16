@@ -9,9 +9,13 @@
     "build:staging": "env-cmd -f .env.staging next build",
     "start": "next start -p 3001",
     "start:staging": "env-cmd -f .env.staging next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "node e2e/editor-dnd.e2e.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.1.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -46,6 +50,7 @@
     "env-cmd": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "^16.3.5",
+    "playwright-core": "^1.54.2",
     "postcss": "^8.5.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

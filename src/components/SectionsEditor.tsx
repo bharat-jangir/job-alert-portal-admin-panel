@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowDown, ArrowUp, Plus, Trash2, X, Palette, RotateCcw } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2, X, Palette, RotateCcw } from 'lucide-react';
+import { SortableList } from '@/components/SortableList';
 
 /**
  * Styling and design configuration for an individual section / element.
@@ -150,13 +151,17 @@ export const TEMPLATES: Record<string, Section[]> = {
   default: [{ type: 'paragraph', text: '' }, t([['', '']]), links()],
 };
 
-const moveItem = <T,>(arr: T[], i: number, dir: -1 | 1): T[] => {
-  const j = i + dir;
-  if (j < 0 || j >= arr.length) return arr;
-  const next = [...arr];
-  [next[i], next[j]] = [next[j], next[i]];
-  return next;
-};
+
+/** Short text describing a block, shown when it is collapsed so you can still tell blocks apart. */
+function summarize(s: Section): string {
+  const clip = (t?: string) => (t ?? '').replace(/\s+/g, ' ').trim().slice(0, 90);
+  const a: any = s;
+  return clip(
+    a.title || a.text || a.label || a.caption || a.alt || a.url || a.src || a.code || a.slot ||
+      a.items?.[0]?.question || a.items?.[0]?.title || a.items?.[0]?.label || a.items?.[0]?.value || a.items?.[0] ||
+      a.headers?.join(' | ') || (a.columns ? `${a.columns.length} columns` : '') || a.html?.replace(/<[^>]+>/g, ' '),
+  );
+}
 
 function Lines({ items, onChange, placeholder }: { items: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
   return (
@@ -190,16 +195,19 @@ function ColumnLeafBlock({
   b,
   onUpdate,
   onDelete,
+  handle,
 }: {
   b: Leaf;
   onUpdate: (nb: Leaf) => void;
   onDelete: () => void;
+  handle?: ReactNode;
 }) {
   const [openStyle, setOpenStyle] = useState(false);
   return (
     <div className="border rounded bg-white p-2">
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1.5">
+          {handle}
           <span className="text-[10px] uppercase tracking-wide text-gray-400">{b.type}</span>
           <button
             type="button"
@@ -555,14 +563,21 @@ function BlockBody({ s, set }: { s: Section; set: (s: Section) => void }) {
                     {LEAF_BLOCKS.map((b) => <option key={b.type} value={b.type}>{b.label}</option>)}
                   </select>
                 </div>
-                {col.blocks.map((b, k) => (
-                  <ColumnLeafBlock
-                    key={k}
-                    b={b}
-                    onUpdate={(nb) => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.map((x, j) => (j === k ? nb : x)) } : cc)) })}
-                    onDelete={() => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.filter((_, j) => j !== k) } : cc)) })}
-                  />
-                ))}
+                <SortableList
+                  items={col.blocks}
+                  onChange={(blocks) => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks } : cc)) })}
+                >
+                  {(b, ctx) => (
+                    <div className="mb-2">
+                      <ColumnLeafBlock
+                        b={b}
+                        handle={ctx.handle}
+                        onUpdate={(nb) => set({ ...s, columns: s.columns.map((cc, kk) => (kk === c ? { blocks: cc.blocks.map((x, j) => (j === ctx.index ? nb : x)) } : cc)) })}
+                        onDelete={ctx.remove}
+                      />
+                    </div>
+                  )}
+                </SortableList>
               </div>
             ))}
           </div>
@@ -958,73 +973,108 @@ export function cleanSections(sections: Section[]): Section[] {
 }
 
 export function SectionsEditor({ value, onChange, postType }: { value: Section[]; onChange: (v: Section[]) => void; postType: string }) {
-  const [openStyleId, setOpenStyleId] = useState<number | null>(null);
+  // keyed by the row's stable id (not its index) so the open panel / collapsed state follow a block when it moves
+  const [openStyleId, setOpenStyleId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [allCollapsed, setAllCollapsed] = useState(false);
 
   const applyTemplate = () => {
     if (value.length && !confirm('Replace the current blocks with the template?')) return;
     onChange(JSON.parse(JSON.stringify(TEMPLATES[postType] ?? TEMPLATES.default)));
   };
+  // "collapse all" is a mode: every current and future row follows it until a row is toggled by hand
+  const isCollapsed = (id: string) => (id in collapsed ? collapsed[id] : allCollapsed);
+  const setAll = (v: boolean) => { setAllCollapsed(v); setCollapsed({}); setOpenStyleId(null); };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={applyTemplate}>
           Use {postType ? `"${postType}"` : 'default'} template
         </Button>
-        <span className="text-xs text-gray-500">Structured blocks power rich results in Google and a consistent layout.</span>
+        {value.length > 1 && (
+          <Button type="button" variant="outline" size="sm" onClick={() => setAll(!allCollapsed)}>
+            {allCollapsed ? 'Expand all' : 'Collapse all'}
+          </Button>
+        )}
+        <span className="text-xs text-gray-500">
+          {value.length > 1
+            ? 'Drag the ⋮⋮ handle to reorder blocks (collapse them first for long posts). Keyboard: focus the handle, press Space, use the arrow keys, Space again to drop.'
+            : 'Structured blocks power rich results in Google and a consistent layout.'}
+        </span>
       </div>
 
       {value.length === 0 && <p className="text-sm text-gray-500 border border-dashed rounded-md p-4 text-center">No blocks yet. Add one below or start from a template.</p>}
 
-      {value.map((s, i) => (
-        <div key={i} className="border rounded-lg bg-white shadow-sm">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b bg-gray-50 rounded-t-lg">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">{s.type}</span>
-              {hasStyles(s.styles) && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium">
-                  <Palette className="h-2.5 w-2.5" />
-                  Styled
-                </span>
+      <SortableList items={value} onChange={onChange}>
+        {(s, ctx) => {
+          const i = ctx.index;
+          const folded = isCollapsed(ctx.id);
+          return (
+            <div className="mb-3 border rounded-lg bg-white shadow-sm" data-block-type={s.type}>
+              <div className="flex items-center justify-between px-3 py-1.5 border-b bg-gray-50 rounded-t-lg">
+                <div className="flex min-w-0 items-center gap-2">
+                  {ctx.handle}
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed((c) => ({ ...c, [ctx.id]: !folded }))}
+                    className="text-gray-500 hover:text-gray-800"
+                    aria-label={folded ? 'Expand block' : 'Collapse block'}
+                    aria-expanded={!folded}
+                  >
+                    {folded ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">{s.type}</span>
+                  {hasStyles(s.styles) && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium">
+                      <Palette className="h-2.5 w-2.5" />
+                      Styled
+                    </span>
+                  )}
+                  {folded && <span className="truncate text-xs text-gray-500">{summarize(s)}</span>}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setOpenStyleId(openStyleId === ctx.id ? null : ctx.id); setCollapsed((c) => ({ ...c, [ctx.id]: false })); }}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                      openStyleId === ctx.id
+                        ? 'bg-blue-600 text-white font-medium'
+                        : hasStyles(s.styles)
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                        : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                    }`}
+                    title="Customize Section Styles & CSS"
+                  >
+                    <Palette className="h-3.5 w-3.5" />
+                    <span>Style</span>
+                  </button>
+                  <div className="h-4 w-px bg-gray-200 mx-0.5" />
+                  <Button type="button" variant="ghost" size="icon" disabled={i === 0} onClick={() => ctx.move(-1)} aria-label="Move up"><ArrowUp className="h-4 w-4" /></Button>
+                  <Button type="button" variant="ghost" size="icon" disabled={i === ctx.count - 1} onClick={() => ctx.move(1)} aria-label="Move down"><ArrowDown className="h-4 w-4" /></Button>
+                  <Button type="button" variant="ghost" size="icon" onClick={ctx.remove} aria-label="Delete block"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                </div>
+              </div>
+
+              {!folded && openStyleId === ctx.id && (
+                <div className="px-3 pt-2">
+                  <BlockStylesEditor
+                    styles={s.styles}
+                    onChange={(next) => onChange(value.map((x, k) => (k === i ? { ...x, styles: next } : x)))}
+                    onClose={() => setOpenStyleId(null)}
+                  />
+                </div>
+              )}
+
+              {!folded && (
+                <div className="p-3">
+                  <BlockBody s={s} set={(next) => onChange(value.map((x, k) => (k === i ? next : x)))} />
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setOpenStyleId(openStyleId === i ? null : i)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                  openStyleId === i
-                    ? 'bg-blue-600 text-white font-medium'
-                    : hasStyles(s.styles)
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-                    : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                }`}
-                title="Customize Section Styles & CSS"
-              >
-                <Palette className="h-3.5 w-3.5" />
-                <span>Style</span>
-              </button>
-              <div className="h-4 w-px bg-gray-200 mx-0.5" />
-              <Button type="button" variant="ghost" size="icon" disabled={i === 0} onClick={() => onChange(moveItem(value, i, -1))} aria-label="Move up"><ArrowUp className="h-4 w-4" /></Button>
-              <Button type="button" variant="ghost" size="icon" disabled={i === value.length - 1} onClick={() => onChange(moveItem(value, i, 1))} aria-label="Move down"><ArrowDown className="h-4 w-4" /></Button>
-              <Button type="button" variant="ghost" size="icon" onClick={() => onChange(value.filter((_, k) => k !== i))} aria-label="Delete block"><Trash2 className="h-4 w-4 text-red-500" /></Button>
-            </div>
-          </div>
-
-          {openStyleId === i && (
-            <div className="px-3 pt-2">
-              <BlockStylesEditor
-                styles={s.styles}
-                onChange={(next) => onChange(value.map((x, k) => (k === i ? { ...x, styles: next } : x)))}
-                onClose={() => setOpenStyleId(null)}
-              />
-            </div>
-          )}
-
-          <div className="p-3">
-            <BlockBody s={s} set={(next) => onChange(value.map((x, k) => (k === i ? next : x)))} />
-          </div>
-        </div>
-      ))}
+          );
+        }}
+      </SortableList>
 
       <div className="rounded-lg border bg-gray-50 p-3 space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Add block</p>
@@ -1032,7 +1082,7 @@ export function SectionsEditor({ value, onChange, postType }: { value: Section[]
           <div key={g.name} className="flex flex-wrap items-center gap-2">
             <span className="w-20 shrink-0 text-xs text-gray-500">{g.name}</span>
             {g.blocks.map((b) => (
-              <Button key={b.type} type="button" variant="outline" size="sm" onClick={() => onChange([...value, b.make()])}>
+              <Button key={b.type} type="button" variant="outline" size="sm" onClick={() => { if (allCollapsed) setAll(false); onChange([...value, b.make()]); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> {b.label}
               </Button>
             ))}

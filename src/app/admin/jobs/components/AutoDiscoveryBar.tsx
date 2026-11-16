@@ -1,16 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import api from '@/lib/axios';
 import { Play, RefreshCw, CheckCircle2, AlertCircle, Clock, Globe } from 'lucide-react';
 
+interface RunResult {
+  adapter: string;
+  discovered: number;
+  processed: number;
+  autoPublished: number;
+  heldForReview: number;
+  updated: number;
+  unchanged: number;
+  failed: number;
+  errors: string[];
+}
+
 interface CrawlerStats {
   total: number;
   inReview: number;
+  published: number;
   discovered: number;
   failed: number;
+  autoPublished24h: number;
+  running: boolean;
+  lastRun?: { startedAt: string; finishedAt?: string; results: RunResult[]; error?: string };
+  config: { autoPublish: boolean; scheduler: boolean; minConfidence: number; dailyCap: number };
+  needsAttention: Array<{
+    _id: string;
+    url: string;
+    title: string;
+    status: string;
+    reasons: string[];
+    job?: { _id: string; title: string; status: string };
+  }>;
   recent: Array<{
     _id: string;
     url: string;
@@ -37,49 +62,66 @@ export function AutoDiscoveryBar({ onJobsUpdated }: { onJobsUpdated?: () => void
   const [maxAi, setMaxAi] = useState<number>(3);
   const [isOpenDetails, setIsOpenDetails] = useState(false);
 
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    fetchStats();
+    fetchStats().then((st) => { if (st?.running) startPolling(); });
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = async (): Promise<CrawlerStats | null> => {
     try {
       setIsLoadingStats(true);
       const res = await api.get('/scraper/stats');
       let payload = res.data;
-      while (payload?.data && !payload.total) {
+      while (payload?.data && payload.total === undefined) {
         payload = payload.data;
       }
       setStats(payload);
+      return payload as CrawlerStats;
     } catch (err) {
       console.warn('Could not fetch crawler stats:', err);
+      return null;
     } finally {
       setIsLoadingStats(false);
     }
   };
 
+  /** The crawl runs in the background on the server; poll until it reports it has finished. */
+  const startPolling = () => {
+    setIsCrawling(true);
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      const st = await fetchStats();
+      if (st && !st.running) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        setIsCrawling(false);
+        const results = st.lastRun?.results ?? [];
+        const sum = (k: keyof RunResult) => results.reduce((n, r) => n + (Number(r[k]) || 0), 0);
+        if (st.lastRun?.error) {
+          toast.error(`Crawl failed: ${st.lastRun.error}`);
+        } else {
+          toast.success(
+            `Done: ${sum('processed')} new (${sum('autoPublished')} published automatically, ${sum('heldForReview')} held for review), ${sum('updated')} updated, ${sum('unchanged')} unchanged, ${sum('failed')} failed.`,
+          );
+        }
+        if (onJobsUpdated) onJobsUpdated();
+      }
+    }, 3000);
+  };
+
   const handleRunDiscovery = async () => {
     setIsCrawling(true);
     try {
-      toast.info('Triggered automated crawler. Discovering and analyzing new posts...');
-      const res = await api.post('/scraper/crawl', {
-        adapter: selectedAdapter,
-        limit,
-        maxAiExtract: maxAi,
-      });
-
-      const outcome = res.data?.result || res.data?.results;
-      const count = outcome?.processed ?? 0;
-      const discovered = outcome?.discovered ?? 0;
-
-      toast.success(
-        `Discovery complete! ${discovered} candidate links checked, ${count} new post(s) created in 'In Review'.`,
-      );
-      fetchStats();
-      if (onJobsUpdated) onJobsUpdated();
+      await api.post('/scraper/crawl', { adapter: selectedAdapter, limit, maxAiExtract: maxAi });
+      toast.info('Crawler started in the background. This can take a few minutes.');
+      startPolling();
     } catch (err: any) {
       console.error('Crawler trigger error:', err);
-      toast.error(err.response?.data?.message || err.message || 'Failed to complete auto-discovery.');
-    } finally {
+      const m = err.response?.data?.error?.message ?? err.response?.data?.message;
+      toast.error(Array.isArray(m) ? m.join(', ') : m || err.message || 'Failed to start auto-discovery.');
       setIsCrawling(false);
     }
   };
@@ -101,8 +143,21 @@ export function AutoDiscoveryBar({ onJobsUpdated }: { onJobsUpdated?: () => void
               </span>
             </div>
             <p className="text-xs text-gray-600 mt-0.5">
-              Scrapes sources for newly announced vacancies, results, & admit cards, parses schema with Gemini Flash, and queues them in <strong className="text-amber-700">In Review</strong>.
+              Scrapes sources for newly announced vacancies, results, & admit cards and extracts them with Gemini Flash.
+              {stats?.config?.autoPublish ? (
+                <> Posts that pass the automatic quality checks are <strong className="text-emerald-700">published automatically</strong>; the rest wait in <strong className="text-amber-700">In Review</strong>.</>
+              ) : (
+                <> Everything is queued in <strong className="text-amber-700">In Review</strong> (auto-publish is off).</>
+              )}
             </p>
+            {stats?.config && (
+              <p className="text-[11px] text-gray-500 mt-1">
+                Auto-publish: <strong className={stats.config.autoPublish ? 'text-emerald-700' : 'text-gray-700'}>{stats.config.autoPublish ? 'ON' : 'OFF'}</strong>
+                {' · '}Scheduler: <strong>{stats.config.scheduler ? 'ON' : 'OFF'}</strong>
+                {' · '}Published automatically (24h): <strong>{stats.autoPublished24h}</strong>/{stats.config.dailyCap}
+                {' · '}Min. confidence: <strong>{stats.config.minConfidence}</strong>
+              </p>
+            )}
           </div>
         </div>
 
@@ -156,7 +211,15 @@ export function AutoDiscoveryBar({ onJobsUpdated }: { onJobsUpdated?: () => void
       {/* Activity / Stats Accordion */}
       {isOpenDetails && (
         <div className="mt-4 pt-3 border-t border-blue-200/60 text-xs">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+            <div className="bg-white/80 p-2.5 rounded-lg border border-emerald-100 flex items-center justify-between">
+              <span className="text-emerald-700">Published</span>
+              <span className="font-bold text-emerald-700">{stats?.published ?? 0}</span>
+            </div>
+            <div className="bg-white/80 p-2.5 rounded-lg border border-orange-100 flex items-center justify-between">
+              <span className="text-orange-700">Needs attention</span>
+              <span className="font-bold text-orange-700">{stats?.needsAttention?.length ?? 0}</span>
+            </div>
             <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100 flex items-center justify-between">
               <span className="text-gray-500">Tracked URLs</span>
               <span className="font-bold text-gray-900">{stats?.total ?? 0}</span>
@@ -174,6 +237,31 @@ export function AutoDiscoveryBar({ onJobsUpdated }: { onJobsUpdated?: () => void
               <span className="font-bold text-red-700">{stats?.failed ?? 0}</span>
             </div>
           </div>
+
+          {stats?.needsAttention && stats.needsAttention.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[11px] font-semibold text-orange-700 uppercase tracking-wider mb-1.5">
+                Needs your attention
+              </div>
+              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                {stats.needsAttention.map((n) => (
+                  <div key={n._id} className="bg-orange-50 px-2.5 py-1.5 rounded border border-orange-100 text-[11px]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-800 truncate">{n.job?.title ?? n.title}</span>
+                      {n.job && (
+                        <a href={`/admin/jobs/${n.job._id}/edit`} className="text-blue-600 hover:underline font-semibold shrink-0">
+                          Review &rarr;
+                        </a>
+                      )}
+                    </div>
+                    <ul className="list-disc pl-4 text-orange-800 mt-0.5">
+                      {n.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {stats?.recent && stats.recent.length > 0 && (
             <div>

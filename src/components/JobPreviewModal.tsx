@@ -823,9 +823,13 @@ export function JobPreviewModal({ job, open, onOpenChange }: JobPreviewModalProp
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
                       HTML Content
                     </h4>
-                    <div
-                      className="prose prose-sm max-w-none text-xs text-slate-700"
-                      dangerouslySetInnerHTML={{ __html: job.htmlContent }}
+                    {/* sandbox="" = no scripts, no same-origin access: the admin token in localStorage stays out of reach */}
+                    <iframe
+                      title="HTML content preview"
+                      sandbox=""
+                      referrerPolicy="no-referrer"
+                      srcDoc={`<base target="_blank"><style>body{font:13px/1.5 system-ui,sans-serif;color:#334155;margin:0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:6px}img{max-width:100%}</style>${job.htmlContent}`}
+                      className="w-full min-h-[320px] rounded border border-slate-200 bg-white"
                     />
                   </div>
                 )}
