@@ -26,6 +26,7 @@ interface JobCategory {
   _id: string;
   name: string;
   displayName?: string;
+  displayNameHi?: string;
   slug: string;
   sequenceNo: number;
   showOnHome: boolean;
@@ -37,7 +38,7 @@ export default function JobCategoriesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<JobCategory | null>(null);
-  const [formData, setFormData] = useState({ name: '', displayName: '', slug: '', sequenceNo: 0, showOnHome: true });
+  const [formData, setFormData] = useState({ name: '', displayName: '', displayNameHi: '', slug: '', sequenceNo: 0, showOnHome: true });
 
   useEffect(() => {
     fetchCategories();
@@ -59,12 +60,12 @@ export default function JobCategoriesPage() {
   const handleOpenDialog = (category?: JobCategory) => {
     if (category) {
       setEditingCategory(category);
-      setFormData({ name: category.name, displayName: category.displayName || category.name, slug: category.slug, sequenceNo: category.sequenceNo, showOnHome: category.showOnHome ?? true });
+      setFormData({ name: category.name, displayName: category.displayName || category.name, displayNameHi: category.displayNameHi || '', slug: category.slug, sequenceNo: category.sequenceNo, showOnHome: category.showOnHome ?? true });
     } else {
       setEditingCategory(null);
       // Auto-increment sequence number for new category
       const maxSeq = categories.length > 0 ? Math.max(...categories.map(c => c.sequenceNo)) : 0;
-      setFormData({ name: '', displayName: '', slug: '', sequenceNo: maxSeq + 1, showOnHome: true });
+      setFormData({ name: '', displayName: '', displayNameHi: '', slug: '', sequenceNo: maxSeq + 1, showOnHome: true });
     }
     setIsDialogOpen(true);
   };
@@ -126,6 +127,16 @@ export default function JobCategoriesPage() {
                 }}
                 placeholder="e.g. Admit Card"
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Hindi name (हिन्दी)</label>
+              <Input
+                lang="hi"
+                value={formData.displayNameHi}
+                onChange={(e) => setFormData({ ...formData, displayNameHi: e.target.value })}
+                placeholder="e.g. एडमिट कार्ड"
+              />
+              <p className="mt-1 text-xs text-gray-500">Shown on the Hindi site. Empty: the Display Name is used.</p>
             </div>
             <div>
               <label className="text-sm font-medium">Display Name</label>

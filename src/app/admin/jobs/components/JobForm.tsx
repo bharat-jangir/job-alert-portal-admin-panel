@@ -18,6 +18,7 @@ import { X, Sparkles, Loader2, Bot, Globe, Eye } from 'lucide-react';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import Editor from '@monaco-editor/react';
 import { SectionsEditor, cleanSections, type Section } from '@/components/SectionsEditor';
+import { HindiPanel, hindiPayload, type HiTranslation } from './HindiPanel';
 import { JobPreviewModal } from '@/components/JobPreviewModal';
 import { useAuth, AdminRole } from '@/lib/auth-context';
 
@@ -177,6 +178,9 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
     sections: job?.sections || [],
   });
 
+  // Hindi version (translations.hi). `hiTouched` keeps untouched posts from sending `translations` at all.
+  const [hi, setHi] = useState<HiTranslation | undefined>(job?.translations?.hi);
+  const [hiTouched, setHiTouched] = useState(false);
   const [tagInput, setTagInput] = useState(job?.tags?.join(', ') || '');
   const [errors, setErrors] = useState<Partial<Record<keyof JobFormData, string>>>({});
   const [aiSourceUrl, setAiSourceUrl] = useState(job?.sourceUrl || '');
@@ -391,6 +395,7 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         importantDates: importantDates
           .filter((d) => d.label || d.date)
           .map((d) => ({ label: d.label, date: iso(d.date) })),
+        translations: hindiPayload(hi, hiTouched),
       };
       // empty strings -> omitted (the API treats them as "not set")
       for (const k of Object.keys(formattedData)) if (formattedData[k] === '') delete formattedData[k];
@@ -712,6 +717,18 @@ export function JobForm({ job, onSuccess }: JobFormProps) {
         <SectionsEditor value={formData.sections} onChange={(v) => handleChange('sections', v)} postType={formData.type} />
       </div>
 
+
+      <HindiPanel
+        jobId={job?._id}
+        value={hi}
+        onChange={(v) => { setHi(v); setHiTouched(true); }}
+        english={{
+          title: formData.title, description: formData.description, metaTitle: formData.metaTitle,
+          metaDescription: formData.metaDescription, organization: formData.organization, location: formData.location,
+          updateNote: formData.updateNote, totalVacancy: formData.totalVacancy, ageLimit: formData.ageLimit,
+          salary: formData.salary, sections: formData.sections, importantDates: formData.importantDates,
+        }}
+      />
 
       <div>
         <label className="block text-sm font-medium mb-2">Detailed Content (HTML)</label>

@@ -22,6 +22,7 @@ import { AutoDiscoveryBar } from './components/AutoDiscoveryBar';
 interface Job {
   _id: string;
   title: string;
+  translations?: { hi?: { title?: string; status?: string } };
   organization: string;
   location: string;
   lastDate: string;
@@ -296,7 +297,17 @@ export default function JobsPage() {
             ) : (
               jobs.map((job) => (
                 <TableRow key={job._id}>
-                  <TableCell className="font-medium">{job.title}</TableCell>
+                  <TableCell className="font-medium">
+                    {job.title}
+                    {job.translations?.hi?.title && (
+                      <span
+                        title={job.translations.hi.status === 'reviewed' ? 'Hindi version reviewed' : 'Hindi version (automatic, not yet checked)'}
+                        className={`ml-2 rounded px-1.5 py-0.5 align-middle text-[10px] font-semibold ${job.translations.hi.status === 'reviewed' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}
+                      >
+                        हिं
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>{job.organization}</TableCell>
                   <TableCell>{job.location}</TableCell>
                   <TableCell>{job.lastDate ? new Date(job.lastDate).toLocaleDateString() : '—'}</TableCell>
