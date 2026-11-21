@@ -1,9 +1,13 @@
 import axios from 'axios';
 
+const backendUrl =
+  process.env.BACKEND_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:5000';
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL 
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api` 
-    : (() => { throw new Error("NEXT_PUBLIC_API_URL is not defined in environment variables"); })(),
+  baseURL: `${backendUrl.replace(/\/$/, '')}/api`,
   headers: {
     'Content-Type': 'application/json',
   },

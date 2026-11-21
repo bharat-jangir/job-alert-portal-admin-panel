@@ -2,7 +2,12 @@
  * fetch() wrapper for the admin: attaches the bearer token and signs the user out on 401.
  * Several older pages use raw fetch; this keeps them working against the guarded API.
  */
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+export const API_BASE = (
+  process.env.BACKEND_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:5000'
+).replace(/\/$/, '');
 
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);

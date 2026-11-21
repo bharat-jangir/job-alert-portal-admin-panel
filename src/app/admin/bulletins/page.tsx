@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Megaphone, ExternalLink, XCircle, Pencil } from 'lucide-react';
 
+import { API_BASE } from '@/lib/http';
+
 interface Job {
   _id: string;
   title: string;
@@ -13,7 +15,7 @@ interface Job {
   type: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = API_BASE;
 const PUBLIC_SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 export default function AdminBulletinsPage() {

@@ -1,12 +1,12 @@
 'use client';
 
-import { apiFetch, readApiError } from '@/lib/http';
+import { apiFetch, readApiError, API_BASE } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { HelpCircle, ArrowLeft, Save } from 'lucide-react';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = API_BASE;
 const CATEGORIES = ['General', 'Applying', 'Admit Cards', 'Results', 'Answer Keys', 'Eligibility', 'Fees', 'Other'];
 
 export default function EditFaqPage() {

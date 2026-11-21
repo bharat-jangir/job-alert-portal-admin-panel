@@ -1,6 +1,6 @@
 'use client';
 
-import { apiFetch } from '@/lib/http';
+import { apiFetch, API_BASE } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -17,7 +17,7 @@ interface Faq {
   isActive: boolean;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = API_BASE;
 
 export default function AdminFaqsPage() {
   const [faqs, setFaqs] = useState<Faq[]>([]);

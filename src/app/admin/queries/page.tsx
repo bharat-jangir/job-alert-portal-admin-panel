@@ -1,6 +1,6 @@
 'use client';
 
-import { apiFetch } from '@/lib/http';
+import { apiFetch, API_BASE } from '@/lib/http';
 import { useState, useEffect } from 'react';
 import { Mail, CheckCircle, Clock, Inbox, Trash2 } from 'lucide-react';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ interface ContactQuery {
   createdAt: string;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = API_BASE;
 
 export default function AdminQueriesPage() {
   const [queries, setQueries] = useState<ContactQuery[]>([]);
