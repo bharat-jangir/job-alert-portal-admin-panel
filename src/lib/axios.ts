@@ -1,10 +1,24 @@
 import axios from 'axios';
 
-const backendUrl =
+const isProd =
+  typeof window !== 'undefined'
+    ? window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    : process.env.NODE_ENV === 'production' || process.env.VERCEL;
+
+const defaultBackendUrl = isProd
+  ? 'https://job-alert-portal-backend-wwc6.onrender.com'
+  : 'http://localhost:5000';
+
+const configuredUrl =
   process.env.BACKEND_API_BASE_URL ||
   process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  'http://localhost:5000';
+  process.env.NEXT_PUBLIC_API_URL;
+
+// If deployed on Vercel/production but configuredUrl accidentally has localhost, override to production backend:
+const backendUrl =
+  isProd && (!configuredUrl || configuredUrl.includes('localhost') || configuredUrl.includes('127.0.0.1'))
+    ? defaultBackendUrl
+    : (configuredUrl || defaultBackendUrl);
 
 const api = axios.create({
   baseURL: `${backendUrl.replace(/\/$/, '')}/api`,

@@ -1,8 +1,16 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === "production" || process.env.VERCEL;
+
 const nextConfig: NextConfig = {
   env: {
-    BACKEND_API_BASE_URL: process.env.BACKEND_API_BASE_URL || process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+    BACKEND_API_BASE_URL:
+      process.env.BACKEND_API_BASE_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      (isProd
+        ? "https://job-alert-portal-backend-wwc6.onrender.com"
+        : "http://localhost:5000"),
   },
 };
 
