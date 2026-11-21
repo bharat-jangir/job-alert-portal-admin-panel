@@ -61,7 +61,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
           <p className="text-sm text-blue-200/70 mt-1">
-            RojgarResult Management System
+            Sarkari Job Update Management System
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@rojgarresult.com"
+                placeholder="admin@sarkarijobupdate.com"
                 autoComplete="email"
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
